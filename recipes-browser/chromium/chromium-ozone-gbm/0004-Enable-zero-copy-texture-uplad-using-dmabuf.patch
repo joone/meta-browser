@@ -1,0 +1,86 @@
+From c9c2bf1bed1ef3f49f29e36e1b4f872f920369ca Mon Sep 17 00:00:00 2001
+From: Joone Hur <joone.hur@intel.com>
+Date: Wed, 27 Jun 2018 19:50:18 +0000
+Subject: [PATCH 4/9] Enable zero-copy texture uplad using dmabuf
+
+---
+ ui/gfx/BUILD.gn                                     |  5 +++++
+ ui/gfx/linux/client_native_pixmap_factory_dmabuf.cc | 11 ++++++-----
+ 2 files changed, 11 insertions(+), 5 deletions(-)
+
+diff --git a/ui/gfx/BUILD.gn b/ui/gfx/BUILD.gn
+index 5932b6d..17c310a 100644
+--- a/ui/gfx/BUILD.gn
++++ b/ui/gfx/BUILD.gn
+@@ -7,6 +7,7 @@ import("//build/config/ui.gni")
+ import("//device/vr/buildflags/buildflags.gni")
+ import("//testing/test.gni")
+ import("//testing/libfuzzer/fuzzer_test.gni")
++import("//ui/display/display.gni")
+ 
+ if (is_android) {
+   import("//build/config/android/config.gni")
+@@ -570,6 +571,10 @@ source_set("memory_buffer_sources") {
+     ]
+ 
+     deps += [ "//third_party/libdrm" ]
++
++    if (build_display_configuration) {
++      defines += [ "DISPLAY_CONFIGURATION" ]
++    }
+   }
+ 
+   if (is_linux || is_android) {
+diff --git a/ui/gfx/linux/client_native_pixmap_factory_dmabuf.cc b/ui/gfx/linux/client_native_pixmap_factory_dmabuf.cc
+index 0fdb9cb..0ade2be 100644
+--- a/ui/gfx/linux/client_native_pixmap_factory_dmabuf.cc
++++ b/ui/gfx/linux/client_native_pixmap_factory_dmabuf.cc
+@@ -12,7 +12,7 @@
+ #include "build/build_config.h"
+ #include "ui/gfx/native_pixmap_handle.h"
+ 
+-#if defined(OS_CHROMEOS)
++#if defined(DISPLAY_CONFIGURATION)
+ // This can be enabled on all linux but it is not a requirement to support
+ // glCreateImageChromium+Dmabuf since it uses gfx::BufferUsage::SCANOUT and
+ // the pixmap does not need to be mappable on the client side.
+@@ -85,7 +85,7 @@ class ClientNativePixmapFactoryDmabuf : public ClientNativePixmapFactory {
+         return false;
+       case gfx::BufferUsage::GPU_READ_CPU_READ_WRITE:
+       case gfx::BufferUsage::GPU_READ_CPU_READ_WRITE_PERSISTENT: {
+-#if defined(OS_CHROMEOS)
++#if defined(DISPLAY_CONFIGURATION)
+         return
+ #if defined(ARCH_CPU_X86_FAMILY)
+             // Currently only Intel driver (i.e. minigbm and Mesa) supports R_8
+@@ -100,7 +100,7 @@ class ClientNativePixmapFactoryDmabuf : public ClientNativePixmapFactory {
+ #endif
+       }
+       case gfx::BufferUsage::SCANOUT_CAMERA_READ_WRITE: {
+-#if defined(OS_CHROMEOS)
++#if defined(DISPLAY_CONFIGURATION)
+         // Each platform only supports one camera buffer type. We list the
+         // supported buffer formats on all platforms here. When allocating a
+         // camera buffer the caller is responsible for making sure a buffer is
+@@ -112,7 +112,7 @@ class ClientNativePixmapFactoryDmabuf : public ClientNativePixmapFactory {
+ #endif
+       }
+       case gfx::BufferUsage::CAMERA_AND_CPU_READ_WRITE: {
+-#if defined(OS_CHROMEOS)
++#if defined(DISPLAY_CONFIGURATION)
+         // R_8 is used as the underlying pixel format for BLOB buffers.
+         return format == gfx::BufferFormat::R_8;
+ #else
+@@ -134,7 +134,8 @@ class ClientNativePixmapFactoryDmabuf : public ClientNativePixmapFactory {
+       case gfx::BufferUsage::GPU_READ_CPU_READ_WRITE_PERSISTENT:
+       case gfx::BufferUsage::SCANOUT_CAMERA_READ_WRITE:
+       case gfx::BufferUsage::CAMERA_AND_CPU_READ_WRITE:
+-#if defined(OS_CHROMEOS)
++#if defined(DISPLAY_CONFIGURATION)
++        LOG(ERROR) << "ClientNativePixmapFactoryDmabuf::" << __func__;
+         return ClientNativePixmapDmaBuf::ImportFromDmabuf(handle, size);
+ #else
+         NOTREACHED();
+-- 
+2.7.4
+

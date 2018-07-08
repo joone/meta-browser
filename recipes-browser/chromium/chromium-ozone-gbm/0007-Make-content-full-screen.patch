@@ -1,0 +1,26 @@
+From 44d0a6984276eefaa52bb102a65714aeff300da1 Mon Sep 17 00:00:00 2001
+From: Joone Hur <joone.hur@intel.com>
+Date: Sat, 10 Nov 2018 19:30:46 +0000
+Subject: [PATCH 7/9] Make content full-screen
+
+---
+ content/shell/browser/shell_aura.cc | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/content/shell/browser/shell_aura.cc b/content/shell/browser/shell_aura.cc
+index 69b3af7..e2dd408 100644
+--- a/content/shell/browser/shell_aura.cc
++++ b/content/shell/browser/shell_aura.cc
+@@ -46,6 +46,9 @@ void Shell::PlatformCreateWindow(int width, int height) {
+     platform_->ShowWindow();
+   platform_->ResizeWindow(gfx::Size(width, height));
+   window_ = platform_->host()->window();
++
++  aura::Window* content = web_contents_->GetNativeView();
++  content->SetBounds(gfx::Rect(0, 0, width, height));
+ }
+ 
+ void Shell::PlatformSetContents() {
+-- 
+2.7.4
+

@@ -1,0 +1,32 @@
+From 14a9126b76ef4d65add993c0952a77285dd87f96 Mon Sep 17 00:00:00 2001
+From: Joone Hur <joone.hur@intel.com>
+Date: Sun, 8 Jul 2018 01:02:48 +0000
+Subject: [PATCH 11/11] Add mojo_layouttest_test.mojom
+
+chromium tarball does not include mojo_layouttest_test.mojom,
+but it is required to build content_shell.
+
+This CL adds mojo_layouttest_test.mojom file in Chromium build.
+---
+ content/test/data/joone/mojo_layouttest_test.mojom | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+ create mode 100644 content/test/data/joone/mojo_layouttest_test.mojom
+
+diff --git a/content/test/data/mojo_layouttest_test.mojom b/content/test/data/mojo_layouttest_test.mojom
+new file mode 100644
+index 000000000000..4f6ec84a6213
+--- /dev/null
++++ b/content/test/data/mojo_layouttest_test.mojom
+@@ -0,0 +1,10 @@
++// Copyright 2014 The Chromium Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++module content.mojom;
++
++interface MojoLayoutTestHelper {
++  Reverse(string message) => (string reversed);
++};
++
+-- 
+2.17.0

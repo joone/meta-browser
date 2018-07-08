@@ -1,0 +1,516 @@
+From db0d348d5e6e6f2831af1f290a7d51a6c2cb1ea8 Mon Sep 17 00:00:00 2001
+From: Miguel Casas <mcasas@chromium.org>
+Date: Mon, 23 Jul 2018 20:02:11 +0000
+Subject: [PATCH 9/9] RELAND: vaapi: decode on client NativePixmaps
+
+This CL relands crrev.com/c/1021675 that got reverted as predecessor
+to crrev.com/c/1104394 (but was otherwise innocent AFAIK). The said
+predecessor situation has been corrected by crrev.com/c/1117606 (that
+landed in ChromeOS 10840.0.0 [1])
+
+[1] https://crosland.corp.google.com/log/10837.0.0..10840.0.0
+
+TBR=dcastagna@chromium.org (same code as reviewed before)
+
+Original CL description -----------------------------------------------
+vaapi: decode on client NativePixmaps
+
+This CL teaches VaVDA to use client VASurfaceIDs to decode onto, saving
+a buffer copy and removing a costly blit (DownloadFromSurface) on the
+GPU Main thread.  Three groups of changes:
+
+1. In AssignPictureBuffers(): if |vaapi_picture_factory_| Create()s a
+ VaapiPicture with a VASurfaceID, we use those to decode onto and set a new
+ flag: |decode_using_client_picture_buffers_|
+
+2. When the decoder calls CreateVASurface(), instead of giving it the first
+ |available_va_surfaces_|, we need to figure out the first VASurfaceID in
+ this |available_va_surfaces_| such that the corresponding VaapiPicture in
+ |pictures_| is available (i.e. in |available_picture_buffers_|).
+ Reason: libva holds on to some VASurfaceIDs, there's no simple one-to-one
+ correspondence like on ToT.
+
+3. When we're ready to OutputPicture() to |client_|, instead of using the first
+ |available_picture_buffers_|, we find the corresponding one for the
+ passed |va_surface_id| (we could search all over |pictures_| but there's
+ always less |available_picture_buffers_|.
+
+Some other notable developments:
+
+- s/output_buffers_/available_picture_buffers_/
+- OutputPicture() loses a parameter.
+- |decode_using_client_picture_buffers_| is still false for e.g. VP9 Profile 2
+ or the ImportBufferForPicture() path.
+- Pictures is made a base::small_map. (Originally from crrev.com/c/988512).
+
+resolutions for a long time. No hickups, no dropped frames.
+
+Bug: 822346, 717265
+Test: v_d_a_unittest vp8/vp9/h264 passing on eve, running crosvideo changing
+Cq-Include-Trybots: luci.chromium.try:android_optional_gpu_tests_rel;luci.chromium.try:linux_optional_gpu_tests_rel;luci.chromium.try:mac_optional_gpu_tests_rel;luci.chromium.try:win_optional_gpu_tests_rel
+Change-Id: Ie1fb21a7a302476bceee3dd905278d53f13b1475
+Reviewed-on: https://chromium-review.googlesource.com/1021675
+Reviewed-by: Daniele Castagna <dcastagna@chromium.org>
+Reviewed-by: Kristian H. Kristensen <hoegsberg@chromium.org>
+Reviewed-on: https://chromium-review.googlesource.com/1147143
+Commit-Queue: Miguel Casas <mcasas@chromium.org>
+Reviewed-by: Miguel Casas <mcasas@chromium.org>
+Cr-Commit-Position: refs/heads/master@{#577226}
+---
+ media/gpu/vaapi/vaapi_picture.cc                   |   6 +
+ media/gpu/vaapi/vaapi_picture.h                    |   5 +
+ media/gpu/vaapi/vaapi_picture_native_pixmap.cc     |   4 +
+ media/gpu/vaapi/vaapi_picture_native_pixmap.h      |   2 +
+ media/gpu/vaapi/vaapi_video_decode_accelerator.cc  | 134 +++++++++++++++------
+ media/gpu/vaapi/vaapi_video_decode_accelerator.h   |  48 ++++----
+ .../vaapi_video_decode_accelerator_unittest.cc     |   2 +-
+ 7 files changed, 141 insertions(+), 60 deletions(-)
+
+diff --git a/media/gpu/vaapi/vaapi_picture.cc b/media/gpu/vaapi/vaapi_picture.cc
+index 58c1bc0..65d35bf 100644
+--- a/media/gpu/vaapi/vaapi_picture.cc
++++ b/media/gpu/vaapi/vaapi_picture.cc
+@@ -4,6 +4,8 @@
+ 
+ #include "media/gpu/vaapi/vaapi_picture.h"
+ 
++#include <va/va.h>
++
+ #include "media/gpu/vaapi/vaapi_wrapper.h"
+ #include "ui/gl/gl_bindings.h"
+ #include "ui/gl/gl_implementation.h"
+@@ -36,4 +38,8 @@ bool VaapiPicture::AllowOverlay() const {
+   return false;
+ }
+ 
++VASurfaceID VaapiPicture::va_surface_id() const {
++  return VA_INVALID_ID;
++}
++
+ }  // namespace media
+diff --git a/media/gpu/vaapi/vaapi_picture.h b/media/gpu/vaapi/vaapi_picture.h
+index 5ee61a9..d9a296b 100644
+--- a/media/gpu/vaapi/vaapi_picture.h
++++ b/media/gpu/vaapi/vaapi_picture.h
+@@ -22,6 +22,8 @@
+ 
+ namespace media {
+ 
++using VASurfaceID = unsigned int;
++
+ class VASurface;
+ class VaapiWrapper;
+ 
+@@ -49,6 +51,9 @@ class MEDIA_GPU_EXPORT VaapiPicture {
+   virtual bool DownloadFromSurface(
+       const scoped_refptr<VASurface>& va_surface) = 0;
+ 
++  // Returns the associated VASurfaceID, if any, or VA_INVALID_ID.
++  virtual VASurfaceID va_surface_id() const;
++
+  protected:
+   VaapiPicture(const scoped_refptr<VaapiWrapper>& vaapi_wrapper,
+                const MakeGLContextCurrentCallback& make_context_current_cb,
+diff --git a/media/gpu/vaapi/vaapi_picture_native_pixmap.cc b/media/gpu/vaapi/vaapi_picture_native_pixmap.cc
+index 64b0b8d..3a6cfdd 100644
+--- a/media/gpu/vaapi/vaapi_picture_native_pixmap.cc
++++ b/media/gpu/vaapi/vaapi_picture_native_pixmap.cc
+@@ -46,6 +46,10 @@ bool VaapiPictureNativePixmap::AllowOverlay() const {
+   return true;
+ }
+ 
++VASurfaceID VaapiPictureNativePixmap::va_surface_id() const {
++  return va_surface_->id();
++}
++
+ unsigned VaapiPictureNativePixmap::BufferFormatToInternalFormat(
+     gfx::BufferFormat format) const {
+   switch (format) {
+diff --git a/media/gpu/vaapi/vaapi_picture_native_pixmap.h b/media/gpu/vaapi/vaapi_picture_native_pixmap.h
+index ab852425..5d6c38b 100644
+--- a/media/gpu/vaapi/vaapi_picture_native_pixmap.h
++++ b/media/gpu/vaapi/vaapi_picture_native_pixmap.h
+@@ -8,6 +8,7 @@
+ #include <stdint.h>
+ 
+ #include "base/memory/ref_counted.h"
++#include "media/gpu/vaapi/va_surface.h"
+ #include "media/gpu/vaapi/vaapi_picture.h"
+ #include "ui/gfx/buffer_types.h"
+ #include "ui/gfx/geometry/size.h"
+@@ -41,6 +42,7 @@ class VaapiPictureNativePixmap : public VaapiPicture {
+   // VaapiPicture implementation.
+   bool DownloadFromSurface(const scoped_refptr<VASurface>& va_surface) override;
+   bool AllowOverlay() const override;
++  VASurfaceID va_surface_id() const override;
+ 
+   unsigned BufferFormatToInternalFormat(gfx::BufferFormat format) const;
+ 
+diff --git a/media/gpu/vaapi/vaapi_video_decode_accelerator.cc b/media/gpu/vaapi/vaapi_video_decode_accelerator.cc
+index b347326..4f7aac4 100644
+--- a/media/gpu/vaapi/vaapi_video_decode_accelerator.cc
++++ b/media/gpu/vaapi/vaapi_video_decode_accelerator.cc
+@@ -128,6 +128,8 @@ void VaapiVideoDecodeAccelerator::NotifyError(Error error) {
+   }
+ }
+ 
++// TODO(mcasas): consider removing this method and just use
++// DCHECK(base::ContainsValue()) on callsites.
+ VaapiPicture* VaapiVideoDecodeAccelerator::PictureById(
+     int32_t picture_buffer_id) {
+   Pictures::iterator it = pictures_.find(picture_buffer_id);
+@@ -146,6 +148,7 @@ VaapiVideoDecodeAccelerator::VaapiVideoDecodeAccelerator(
+       input_ready_(&lock_),
+       vaapi_picture_factory_(new VaapiPictureFactory()),
+       surfaces_available_(&lock_),
++      decode_using_client_picture_buffers_(false),
+       task_runner_(base::ThreadTaskRunnerHandle::Get()),
+       decoder_thread_("VaapiDecoderThread"),
+       num_frames_at_client_(0),
+@@ -220,15 +223,36 @@ bool VaapiVideoDecodeAccelerator::Initialize(const Config& config,
+ void VaapiVideoDecodeAccelerator::OutputPicture(
+     const scoped_refptr<VASurface>& va_surface,
+     int32_t input_id,
+-    gfx::Rect visible_rect,
+-    VaapiPicture* picture) {
++    gfx::Rect visible_rect) {
+   DCHECK(task_runner_->BelongsToCurrentThread());
+ 
+-  int32_t output_id = picture->picture_buffer_id();
++  const VASurfaceID va_surface_id = va_surface->id();
+ 
+-  DVLOGF(4) << "Outputting VASurface " << va_surface->id()
+-            << " into pixmap bound to picture buffer id " << output_id;
++  VaapiPicture* picture = nullptr;
+   {
++    base::AutoLock auto_lock(lock_);
++    int32_t picture_buffer_id = available_picture_buffers_.front();
++    if (decode_using_client_picture_buffers_) {
++      // Find the |pictures_| entry matching |va_surface_id|.
++      for (const auto& id_and_picture : pictures_) {
++        if (id_and_picture.second->va_surface_id() == va_surface_id) {
++          picture_buffer_id = id_and_picture.first;
++          break;
++        }
++      }
++    }
++    picture = PictureById(picture_buffer_id);
++    DCHECK(base::ContainsValue(available_picture_buffers_, picture_buffer_id));
++    base::Erase(available_picture_buffers_, picture_buffer_id);
++  }
++
++  DCHECK(picture) << " could not find " << va_surface_id << " available";
++  const int32_t output_id = picture->picture_buffer_id();
++
++  VLOGF(4) << "Outputting VASurface " << va_surface_id
++           << " into pixmap bound to picture buffer id " << output_id;
++
++  if (!decode_using_client_picture_buffers_) {
+     TRACE_EVENT2("media,gpu", "VAVDA::DownloadFromSurface", "input_id",
+                  input_id, "output_id", output_id);
+     RETURN_AND_NOTIFY_ON_FAILURE(picture->DownloadFromSurface(va_surface),
+@@ -248,24 +272,20 @@ void VaapiVideoDecodeAccelerator::OutputPicture(
+   }
+ }
+ 
+-void VaapiVideoDecodeAccelerator::TryOutputSurface() {
++void VaapiVideoDecodeAccelerator::TryOutputPicture() {
+   DCHECK(task_runner_->BelongsToCurrentThread());
+ 
+   // Handle Destroy() arriving while pictures are queued for output.
+   if (!client_)
+     return;
+ 
+-  if (pending_output_cbs_.empty() || output_buffers_.empty())
++  if (pending_output_cbs_.empty() || available_picture_buffers_.empty())
+     return;
+ 
+-  OutputCB output_cb = pending_output_cbs_.front();
++  auto output_cb = std::move(pending_output_cbs_.front());
+   pending_output_cbs_.pop();
+ 
+-  VaapiPicture* picture = PictureById(output_buffers_.front());
+-  DCHECK(picture);
+-  output_buffers_.pop();
+-
+-  output_cb.Run(picture);
++  std::move(output_cb).Run();
+ 
+   if (finish_flush_pending_ && pending_output_cbs_.empty())
+     FinishFlush();
+@@ -562,6 +582,7 @@ void VaapiVideoDecodeAccelerator::RecycleVASurfaceID(
+ 
+   available_va_surfaces_.push_back(va_surface_id);
+   surfaces_available_.Signal();
++  TryOutputPicture();
+ }
+ 
+ void VaapiVideoDecodeAccelerator::AssignPictureBuffers(
+@@ -570,8 +591,7 @@ void VaapiVideoDecodeAccelerator::AssignPictureBuffers(
+   base::AutoLock auto_lock(lock_);
+   DCHECK(pictures_.empty());
+ 
+-  while (!output_buffers_.empty())
+-    output_buffers_.pop();
++  available_picture_buffers_.clear();
+ 
+   RETURN_AND_NOTIFY_ON_FAILURE(
+       buffers.size() >= requested_num_pics_,
+@@ -581,11 +601,6 @@ void VaapiVideoDecodeAccelerator::AssignPictureBuffers(
+ 
+   const unsigned int va_format = GetVaFormatForVideoCodecProfile(profile_);
+   std::vector<VASurfaceID> va_surface_ids;
+-  RETURN_AND_NOTIFY_ON_FAILURE(
+-      vaapi_wrapper_->CreateSurfaces(va_format, requested_pic_size_,
+-                                     buffers.size(), &va_surface_ids),
+-      "Failed creating VA Surfaces", PLATFORM_FAILURE, );
+-  DCHECK_EQ(va_surface_ids.size(), buffers.size());
+ 
+   for (size_t i = 0; i < buffers.size(); ++i) {
+     DCHECK(requested_pic_size_ == buffers[i].size());
+@@ -599,17 +614,42 @@ void VaapiVideoDecodeAccelerator::AssignPictureBuffers(
+       RETURN_AND_NOTIFY_ON_FAILURE(
+           picture->Allocate(vaapi_picture_factory_->GetBufferFormat()),
+           "Failed to allocate memory for a VaapiPicture", PLATFORM_FAILURE, );
+-      output_buffers_.push(buffers[i].id());
++      available_picture_buffers_.push_back(buffers[i].id());
++
++      VASurfaceID va_surface_id = picture->va_surface_id();
++      if (va_surface_id != VA_INVALID_ID)
++        va_surface_ids.push_back(va_surface_id);
+     }
+-    bool inserted =
+-        pictures_.insert(std::make_pair(buffers[i].id(), std::move(picture)))
+-            .second;
+-    DCHECK(inserted);
+ 
+-    available_va_surfaces_.push_back(va_surface_ids[i]);
++    DCHECK(!base::ContainsKey(pictures_, buffers[i].id()));
++    pictures_[buffers[i].id()] = std::move(picture);
++
+     surfaces_available_.Signal();
+   }
+ 
++  decode_using_client_picture_buffers_ = !va_surface_ids.empty() &&
++                                         profile_ != VP9PROFILE_PROFILE2 &&
++                                         profile_ != VP9PROFILE_PROFILE3;
++
++  // If we have some |va_surface_ids|, use them for decode, otherwise ask
++  // |vaapi_wrapper_| to allocate them for us.
++  if (decode_using_client_picture_buffers_) {
++    RETURN_AND_NOTIFY_ON_FAILURE(
++        vaapi_wrapper_->CreateContext(va_format, requested_pic_size_,
++                                      va_surface_ids),
++        "Failed creating VA Context", PLATFORM_FAILURE, );
++  } else {
++    va_surface_ids.clear();
++    RETURN_AND_NOTIFY_ON_FAILURE(
++        vaapi_wrapper_->CreateSurfaces(va_format, requested_pic_size_,
++                                       buffers.size(), &va_surface_ids),
++        "Failed creating VA Surfaces", PLATFORM_FAILURE, );
++  }
++  DCHECK_EQ(va_surface_ids.size(), buffers.size());
++
++  for (const auto id : va_surface_ids)
++    available_va_surfaces_.push_back(id);
++
+   // Resume DecodeTask if it is still in decoding state.
+   if (state_ == kDecoding) {
+     decoder_thread_task_runner_->PostTask(
+@@ -679,9 +719,11 @@ void VaapiVideoDecodeAccelerator::ReusePictureBuffer(
+ 
+   --num_frames_at_client_;
+   TRACE_COUNTER1("media,gpu", "Vaapi frames at client", num_frames_at_client_);
+-
+-  output_buffers_.push(picture_buffer_id);
+-  TryOutputSurface();
++  {
++    base::AutoLock auto_lock(lock_);
++    available_picture_buffers_.push_back(picture_buffer_id);
++  }
++  TryOutputPicture();
+ }
+ 
+ void VaapiVideoDecodeAccelerator::FlushTask() {
+@@ -906,7 +948,7 @@ void VaapiVideoDecodeAccelerator::VASurfaceReady(
+       base::Bind(&VaapiVideoDecodeAccelerator::OutputPicture, weak_this_,
+                  va_surface, bitstream_id, visible_rect));
+ 
+-  TryOutputSurface();
++  TryOutputPicture();
+ }
+ 
+ scoped_refptr<VASurface> VaapiVideoDecodeAccelerator::CreateVASurface() {
+@@ -917,12 +959,32 @@ scoped_refptr<VASurface> VaapiVideoDecodeAccelerator::CreateVASurface() {
+     return nullptr;
+ 
+   DCHECK(!awaiting_va_surfaces_recycle_);
+-  scoped_refptr<VASurface> va_surface(new VASurface(
+-      available_va_surfaces_.front(), requested_pic_size_,
+-      vaapi_wrapper_->va_surface_format(), va_surface_release_cb_));
+-  available_va_surfaces_.pop_front();
+-
+-  return va_surface;
++  if (!decode_using_client_picture_buffers_) {
++    const VASurfaceID id = available_va_surfaces_.front();
++    available_va_surfaces_.pop_front();
++    return new VASurface(id, requested_pic_size_,
++                         vaapi_wrapper_->va_surface_format(),
++                         va_surface_release_cb_);
++  }
++
++  // Find the first |available_va_surfaces_| id such that the associated
++  // |pictures_| entry is marked as |available_picture_buffers_|. In practice,
++  // we will quickly find an available |va_surface_id|.
++  for (const VASurfaceID va_surface_id : available_va_surfaces_) {
++    for (const auto& id_and_picture : pictures_) {
++      if (id_and_picture.second->va_surface_id() == va_surface_id &&
++          base::ContainsValue(available_picture_buffers_,
++                              id_and_picture.first)) {
++        // Remove |va_surface_id| from the list of availables, and use the id
++        // to return a new VASurface.
++        base::Erase(available_va_surfaces_, va_surface_id);
++        return new VASurface(va_surface_id, requested_pic_size_,
++                             vaapi_wrapper_->va_surface_format(),
++                             va_surface_release_cb_);
++      }
++    }
++  }
++  return nullptr;
+ }
+ 
+ // static
+diff --git a/media/gpu/vaapi/vaapi_video_decode_accelerator.h b/media/gpu/vaapi/vaapi_video_decode_accelerator.h
+index 271bcc00..be012ad 100644
+--- a/media/gpu/vaapi/vaapi_video_decode_accelerator.h
++++ b/media/gpu/vaapi/vaapi_video_decode_accelerator.h
+@@ -18,6 +18,7 @@
+ #include <vector>
+ 
+ #include "base/containers/queue.h"
++#include "base/containers/small_map.h"
+ #include "base/logging.h"
+ #include "base/macros.h"
+ #include "base/memory/weak_ptr.h"
+@@ -163,18 +164,16 @@ class MEDIA_GPU_EXPORT VaapiVideoDecodeAccelerator
+   // or return false on failure.
+   bool InitializeFBConfig();
+ 
+-  // Callback to be executed once we have a |va_surface| to be output and
+-  // an available |picture| to use for output.
+-  // Puts contents of |va_surface| into given |picture|, releases the surface
+-  // and passes the resulting picture to client to output the given
+-  // |visible_rect| part of it.
++  // Callback to be executed once we have a |va_surface| to be output and an
++  // available VaapiPicture in |available_picture_buffers_| for output. Puts
++  // contents of |va_surface| into the latter, releases the surface and passes
++  // the resulting picture to |client_| along with |visible_rect|.
+   void OutputPicture(const scoped_refptr<VASurface>& va_surface,
+                      int32_t input_id,
+-                     gfx::Rect visible_rect,
+-                     VaapiPicture* picture);
++                     gfx::Rect visible_rect);
+ 
+   // Try to OutputPicture() if we have both a ready surface and picture.
+-  void TryOutputSurface();
++  void TryOutputPicture();
+ 
+   // Called when a VASurface is no longer in use by the decoder or is not being
+   // synced/waiting to be synced to a picture. Returns it to available surfaces
+@@ -202,12 +201,13 @@ class MEDIA_GPU_EXPORT VaapiVideoDecodeAccelerator
+     kDestroying,
+   };
+ 
+-  // Protects input buffer and surface queues and state_.
++  // |lock_| protects |input_buffers_|, |curr_input_buffer_|, |state_| and
++  // |available_picture_buffers_|.
+   base::Lock lock_;
+   State state_;
+   Config::OutputMode output_mode_;
+ 
+-  // Queue of available InputBuffers (picture_buffer_ids).
++  // Queue of available InputBuffers.
+   base::queue<std::unique_ptr<InputBuffer>> input_buffers_;
+   // Signalled when input buffers are queued onto |input_buffers_| queue.
+   base::ConditionVariable input_ready_;
+@@ -215,9 +215,9 @@ class MEDIA_GPU_EXPORT VaapiVideoDecodeAccelerator
+   // Current input buffer at decoder.
+   std::unique_ptr<InputBuffer> curr_input_buffer_;
+ 
+-  // Queue for incoming output buffers (texture ids).
+-  using OutputBuffers = base::queue<int32_t>;
+-  OutputBuffers output_buffers_;
++  // List of PictureBuffer ids available to be sent to |client_| via
++  // OutputPicture() (|client_| returns them via ReusePictureBuffer()).
++  std::list<int32_t> available_picture_buffers_;
+ 
+   std::unique_ptr<VaapiPictureFactory> vaapi_picture_factory_;
+ 
+@@ -229,17 +229,17 @@ class MEDIA_GPU_EXPORT VaapiVideoDecodeAccelerator
+   // allocated once using |create_vaapi_picture_callback_| and destroyed at the
+   // end of decode. Comes after |vaapi_wrapper_| to ensure all pictures are
+   // destroyed before said |vaapi_wrapper_| is destroyed.
+-  using Pictures = std::map<int32_t, std::unique_ptr<VaapiPicture>>;
++  using Pictures =
++      base::small_map<std::map<int32_t, std::unique_ptr<VaapiPicture>>>;
+   Pictures pictures_;
+ 
+   // Return a VaapiPicture associated with given client-provided id.
+   VaapiPicture* PictureById(int32_t picture_buffer_id);
+ 
+-  // VA Surfaces no longer in use that can be passed back to the decoder for
++  // VASurfaceIDs no longer in use that can be passed back to |decoder_| for
+   // reuse, once it requests them.
+   std::list<VASurfaceID> available_va_surfaces_;
+-  // Signalled when output surfaces are queued onto the available_va_surfaces_
+-  // queue.
++  // Signalled when output surfaces are queued into |available_va_surfaces_|.
+   base::ConditionVariable surfaces_available_;
+ 
+   // Pending output requests from the decoder. When it indicates that we should
+@@ -248,14 +248,16 @@ class MEDIA_GPU_EXPORT VaapiVideoDecodeAccelerator
+   // will put the contents of the surface into the picture and return it to
+   // the client, releasing the surface as well.
+   // If we don't have any available Pictures at the time when the decoder
+-  // requests output, we'll store the request on pending_output_cbs_ queue for
+-  // later and run it once the client gives us more textures
+-  // via ReusePictureBuffer().
+-  using OutputCB = base::Callback<void(VaapiPicture*)>;
+-  base::queue<OutputCB> pending_output_cbs_;
++  // requests output, we'll store the request in this queue for later and run it
++  // once the client gives us more textures via ReusePictureBuffer().
++  base::queue<base::OnceClosure> pending_output_cbs_;
++
++  // Under some circumstances, we can pass to libva our own VASurfaceIDs to
++  // decode onto, which skips one copy.
++  bool decode_using_client_picture_buffers_;
+ 
+   // ChildThread's task runner.
+-  scoped_refptr<base::SingleThreadTaskRunner> task_runner_;
++  const scoped_refptr<base::SingleThreadTaskRunner> task_runner_;
+ 
+   // WeakPtr<> pointing to |this| for use in posting tasks from the decoder
+   // thread back to the ChildThread.  Because the decoder thread is a member of
+diff --git a/media/gpu/vaapi/vaapi_video_decode_accelerator_unittest.cc b/media/gpu/vaapi/vaapi_video_decode_accelerator_unittest.cc
+index 76907a6..820c106 100644
+--- a/media/gpu/vaapi/vaapi_video_decode_accelerator_unittest.cc
++++ b/media/gpu/vaapi/vaapi_video_decode_accelerator_unittest.cc
+@@ -233,7 +233,6 @@ class VaapiVideoDecodeAcceleratorTest : public TestWithParam<VideoCodecProfile>,
+     ASSERT_TRUE(vda_.curr_input_buffer_)
+         << "QueueInputBuffer() should have been called";
+ 
+-    ::testing::InSequence s;
+     base::RunLoop run_loop;
+     base::Closure quit_closure = run_loop.QuitClosure();
+ 
+@@ -249,6 +248,7 @@ class VaapiVideoDecodeAcceleratorTest : public TestWithParam<VideoCodecProfile>,
+                 MockCreateVaapiPicture(mock_vaapi_wrapper_.get(), picture_size))
+         .Times(num_pictures);
+ 
++    ::testing::InSequence s;
+     EXPECT_CALL(*mock_decoder_, Decode())
+         .WillOnce(Return(AcceleratedVideoDecoder::kRanOutOfStreamData));
+     EXPECT_CALL(*this, NotifyEndOfBitstreamBuffer(bitstream_id))
+-- 
+2.7.4
+

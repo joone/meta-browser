@@ -1,0 +1,50 @@
+From 243a7674b264ba43645258314c2352e1a04c8ef0 Mon Sep 17 00:00:00 2001
+From: Joone Hur <joone.hur@intel.com>
+Date: Fri, 9 Nov 2018 12:24:08 -0800
+Subject: [PATCH 6/9] Allow to build content_shell with Yocto
+
+Fix the below problem by removeing test fonts dependency.
+
+| DEBUG: Executing shell function do_compile
+| build content_shell
+| ninja: error: '../../third_party/test_fonts/test_fonts/Ahem.ttf', needed by 'test_fonts/Ahem.ttf', missing and no known rule to make it
+| WARNING: exit code 1 from a shell command.
+---
+ base/test/BUILD.gn                 | 5 +----
+ content/shell/test_runner/BUILD.gn | 3 ---
+ 2 files changed, 1 insertion(+), 7 deletions(-)
+
+diff --git a/base/test/BUILD.gn b/base/test/BUILD.gn
+index a90c42c..430667c 100644
+--- a/base/test/BUILD.gn
++++ b/base/test/BUILD.gn
+@@ -204,11 +204,8 @@ static_library("test_support") {
+ 
+   if (is_linux) {
+     public_deps += [ ":fontconfig_util_linux" ]
+-    data_deps = [
+-      "//third_party/test_fonts",
+-    ]
+     if (current_toolchain == host_toolchain) {
+-      data_deps += [ ":do_generate_fontconfig_caches" ]
++      data_deps = [ ":do_generate_fontconfig_caches" ]
+       data += [ "$root_out_dir/fontconfig_caches/" ]
+     }
+   }
+diff --git a/content/shell/test_runner/BUILD.gn b/content/shell/test_runner/BUILD.gn
+index 1b5c11a..7ddfdd7 100644
+--- a/content/shell/test_runner/BUILD.gn
++++ b/content/shell/test_runner/BUILD.gn
+@@ -169,9 +169,6 @@ group("resources") {
+   if (is_mac) {
+     deps += [ ":test_runner_bundle_data" ]
+     data_deps += [ ":test_runner_bundle_data" ]
+-  } else {
+-    deps += [ "//third_party/test_fonts" ]
+-    data_deps += [ "//third_party/test_fonts" ]
+   }
+ 
+   if (is_android || is_fuchsia) {
+-- 
+2.7.4
+
