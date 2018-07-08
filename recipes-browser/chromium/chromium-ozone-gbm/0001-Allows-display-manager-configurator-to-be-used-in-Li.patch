@@ -1,0 +1,1992 @@
+From c5a024e3c41e3a38407bf09abf848372278d5d16 Mon Sep 17 00:00:00 2001
+From: Joone Hur <joone.hur@intel.com>
+Date: Wed, 31 Jan 2018 00:38:26 +0000
+Subject: [PATCH 01/11] Allows display manager/configurator to be used in Linux
+ desktop
+
+This CL moves all files in ui/display/manager/chromeos to
+ui/display/manager and addes build_display_configuration GN arg
+so that the display manager/configurator could be used in Linux
+desktop.
+
+BUG=733450
+---
+ ash/display/ash_display_controller.cc         |  2 +-
+ ash/display/display_animator.h                |  2 +-
+ ash/display/display_color_manager.h           |  2 +-
+ ash/display/display_color_manager_unittest.cc |  4 +-
+ ash/display/display_error_observer.h          |  2 +-
+ ash/display/display_manager_unittest.cc       |  6 +--
+ ash/display/display_shutdown_observer.cc      |  2 +-
+ ash/display/projecting_observer.h             |  2 +-
+ ash/display/touch_calibrator_controller.cc    |  2 +-
+ .../touch_calibrator_controller_unittest.cc   |  8 +--
+ ash/shell.cc                                  |  8 +--
+ ash/shell_port_classic.cc                     |  2 +-
+ ash/system/power/power_button_controller.h    |  2 +-
+ ash/system/power/power_event_observer.cc      |  2 +-
+ ash/touch/ash_touch_transform_controller.cc   |  2 +-
+ ash/touch/ash_touch_transform_controller.h    |  2 +-
+ ash/touch/touch_observer_hud.h                |  2 +-
+ ash/touch/touch_transform_setter_mus.h        |  2 +-
+ ash/wm/lock_state_controller_unittest.cc      |  2 +-
+ ...hrome_console_service_provider_delegate.cc |  2 +-
+ ...display_power_service_provider_delegate.cc |  2 +-
+ .../display/display_prefs_unittest.cc         |  4 +-
+ .../output_protection_controller_ash.h        |  2 +-
+ .../display_info_provider_chromeos.cc         |  4 +-
+ ...display_info_provider_chromeos_unittest.cc |  4 +-
+ .../login/oobe_display_chooser_unittest.cc    |  2 +-
+ .../md_settings_localized_strings_provider.cc |  2 +-
+ components/arc/power/DEPS                     |  2 +-
+ components/arc/power/arc_power_bridge.h       |  2 +-
+ .../browser/shell_desktop_controller_aura.h   |  2 +-
+ services/ui/display/output_protection.cc      |  2 +-
+ .../display/screen_manager_ozone_internal.cc  |  6 +--
+ .../display/screen_manager_ozone_internal.h   |  2 +-
+ .../ui/input_devices/touch_device_server.cc   |  2 +-
+ ui/display/BUILD.gn                           | 53 +++++++++++--------
+ ui/display/display.gni                        |  8 +++
+ ui/display/manager/BUILD.gn                   | 50 +++++++++--------
+ ui/display/manager/DEPS                       | 21 +++++++-
+ .../apply_content_protection_task.cc          |  4 +-
+ .../apply_content_protection_task.h           |  8 +--
+ .../apply_content_protection_task_unittest.cc | 10 ++--
+ ui/display/manager/chromeos/DEPS              | 21 --------
+ .../{chromeos => }/configure_displays_task.cc |  4 +-
+ .../{chromeos => }/configure_displays_task.h  |  6 +--
+ .../configure_displays_task_unittest.cc       |  6 +--
+ .../default_touch_transform_setter.cc         |  2 +-
+ .../default_touch_transform_setter.h          |  8 +--
+ .../{chromeos => }/display_change_observer.cc |  4 +-
+ .../{chromeos => }/display_change_observer.h  |  8 +--
+ .../display_change_observer_unittest.cc       |  4 +-
+ .../{chromeos => }/display_configurator.cc    | 10 ++--
+ .../{chromeos => }/display_configurator.h     |  8 +--
+ .../display_configurator_unittest.cc          |  6 +--
+ .../{chromeos => }/display_layout_manager.h   |  8 +--
+ ui/display/manager/display_manager.cc         |  2 +-
+ ui/display/manager/display_manager.h          |  4 +-
+ .../manager/{chromeos => }/display_util.cc    |  2 +-
+ .../manager/{chromeos => }/display_util.h     |  6 +--
+ .../{chromeos => }/display_utils_unittest.cc  |  2 +-
+ .../manager/managed_display_info_unittest.cc  |  7 +--
+ .../query_content_protection_task.cc          |  4 +-
+ .../query_content_protection_task.h           |  6 +--
+ .../query_content_protection_task_unittest.cc | 10 ++--
+ .../{chromeos => }/test/action_logger.cc      |  2 +-
+ .../{chromeos => }/test/action_logger.h       |  6 +--
+ .../{chromeos => }/test/action_logger_util.cc |  2 +-
+ .../{chromeos => }/test/action_logger_util.h  |  6 +--
+ .../test/test_display_layout_manager.cc       |  2 +-
+ .../test/test_display_layout_manager.h        | 10 ++--
+ .../test/test_native_display_delegate.cc      |  4 +-
+ .../test/test_native_display_delegate.h       | 10 ++--
+ .../test/touch_device_manager_test_api.cc     |  2 +-
+ .../test/touch_device_manager_test_api.h      |  8 +--
+ .../touch_transform_controller_test_api.cc    |  2 +-
+ .../touch_transform_controller_test_api.h     |  8 +--
+ .../{chromeos => }/touch_device_manager.cc    |  2 +-
+ .../{chromeos => }/touch_device_manager.h     |  6 +--
+ .../touch_device_manager_unittest.cc          |  4 +-
+ .../touch_transform_controller.cc             |  8 +--
+ .../touch_transform_controller.h              |  6 +--
+ .../touch_transform_controller_unittest.cc    |  8 +--
+ .../{chromeos => }/touch_transform_setter.h   |  6 +--
+ .../update_display_configuration_task.cc      |  8 +--
+ .../update_display_configuration_task.h       | 10 ++--
+ ...ate_display_configuration_task_unittest.cc |  8 +--
+ 85 files changed, 268 insertions(+), 248 deletions(-)
+ create mode 100644 ui/display/display.gni
+ rename ui/display/manager/{chromeos => }/apply_content_protection_task.cc (97%)
+ rename ui/display/manager/{chromeos => }/apply_content_protection_task.h (90%)
+ rename ui/display/manager/{chromeos => }/apply_content_protection_task_unittest.cc (94%)
+ delete mode 100644 ui/display/manager/chromeos/DEPS
+ rename ui/display/manager/{chromeos => }/configure_displays_task.cc (97%)
+ rename ui/display/manager/{chromeos => }/configure_displays_task.h (93%)
+ rename ui/display/manager/{chromeos => }/configure_displays_task_unittest.cc (97%)
+ rename ui/display/manager/{chromeos => }/default_touch_transform_setter.cc (90%)
+ rename ui/display/manager/{chromeos => }/default_touch_transform_setter.h (69%)
+ rename ui/display/manager/{chromeos => }/display_change_observer.cc (99%)
+ rename ui/display/manager/{chromeos => }/display_change_observer.h (91%)
+ rename ui/display/manager/{chromeos => }/display_change_observer_unittest.cc (99%)
+ rename ui/display/manager/{chromeos => }/display_configurator.cc (99%)
+ rename ui/display/manager/{chromeos => }/display_configurator.h (98%)
+ rename ui/display/manager/{chromeos => }/display_configurator_unittest.cc (99%)
+ rename ui/display/manager/{chromeos => }/display_layout_manager.h (85%)
+ rename ui/display/manager/{chromeos => }/display_util.cc (99%)
+ rename ui/display/manager/{chromeos => }/display_util.h (90%)
+ rename ui/display/manager/{chromeos => }/display_utils_unittest.cc (98%)
+ rename ui/display/manager/{chromeos => }/query_content_protection_task.cc (95%)
+ rename ui/display/manager/{chromeos => }/query_content_protection_task.h (89%)
+ rename ui/display/manager/{chromeos => }/query_content_protection_task_unittest.cc (95%)
+ rename ui/display/manager/{chromeos => }/test/action_logger.cc (90%)
+ rename ui/display/manager/{chromeos => }/test/action_logger.h (79%)
+ rename ui/display/manager/{chromeos => }/test/action_logger_util.cc (97%)
+ rename ui/display/manager/{chromeos => }/test/action_logger_util.h (91%)
+ rename ui/display/manager/{chromeos => }/test/test_display_layout_manager.cc (96%)
+ rename ui/display/manager/{chromeos => }/test/test_display_layout_manager.h (80%)
+ rename ui/display/manager/{chromeos => }/test/test_native_display_delegate.cc (96%)
+ rename ui/display/manager/{chromeos => }/test/test_native_display_delegate.h (91%)
+ rename ui/display/manager/{chromeos => }/test/touch_device_manager_test_api.cc (95%)
+ rename ui/display/manager/{chromeos => }/test/touch_device_manager_test_api.h (84%)
+ rename ui/display/manager/{chromeos => }/test/touch_transform_controller_test_api.cc (85%)
+ rename ui/display/manager/{chromeos => }/test/touch_transform_controller_test_api.h (69%)
+ rename ui/display/manager/{chromeos => }/touch_device_manager.cc (99%)
+ rename ui/display/manager/{chromeos => }/touch_device_manager.h (98%)
+ rename ui/display/manager/{chromeos => }/touch_device_manager_unittest.cc (99%)
+ rename ui/display/manager/{chromeos => }/touch_transform_controller.cc (98%)
+ rename ui/display/manager/{chromeos => }/touch_transform_controller.h (95%)
+ rename ui/display/manager/{chromeos => }/touch_transform_controller_unittest.cc (99%)
+ rename ui/display/manager/{chromeos => }/touch_transform_setter.h (79%)
+ rename ui/display/manager/{chromeos => }/update_display_configuration_task.cc (96%)
+ rename ui/display/manager/{chromeos => }/update_display_configuration_task.h (90%)
+ rename ui/display/manager/{chromeos => }/update_display_configuration_task_unittest.cc (98%)
+
+diff --git a/ash/display/ash_display_controller.cc b/ash/display/ash_display_controller.cc
+index e4286deddd8c..a31111417dbf 100644
+--- a/ash/display/ash_display_controller.cc
++++ b/ash/display/ash_display_controller.cc
+@@ -5,7 +5,7 @@
+ #include "ash/display/ash_display_controller.h"
+ 
+ #include "ash/shell.h"
+-#include "ui/display/manager/chromeos/display_configurator.h"
++#include "ui/display/manager/display_configurator.h"
+ 
+ namespace ash {
+ 
+diff --git a/ash/display/display_animator.h b/ash/display/display_animator.h
+index f32ddb8283f7..a81d58f601a9 100644
+--- a/ash/display/display_animator.h
++++ b/ash/display/display_animator.h
+@@ -14,7 +14,7 @@
+ #include "base/macros.h"
+ #include "base/memory/weak_ptr.h"
+ #include "base/timer/timer.h"
+-#include "ui/display/manager/chromeos/display_configurator.h"
++#include "ui/display/manager/display_configurator.h"
+ 
+ namespace aura {
+ class Window;
+diff --git a/ash/display/display_color_manager.h b/ash/display/display_color_manager.h
+index b6d40d458e60..dce51387b096 100644
+--- a/ash/display/display_color_manager.h
++++ b/ash/display/display_color_manager.h
+@@ -16,7 +16,7 @@
+ #include "base/macros.h"
+ #include "base/memory/weak_ptr.h"
+ #include "base/sequence_checker.h"
+-#include "ui/display/manager/chromeos/display_configurator.h"
++#include "ui/display/manager/display_configurator.h"
+ #include "ui/display/types/display_constants.h"
+ 
+ namespace base {
+diff --git a/ash/display/display_color_manager_unittest.cc b/ash/display/display_color_manager_unittest.cc
+index 310a12685e3c..1ed79eeb2adc 100644
+--- a/ash/display/display_color_manager_unittest.cc
++++ b/ash/display/display_color_manager_unittest.cc
+@@ -17,9 +17,9 @@
+ #include "components/quirks/quirks_manager.h"
+ #include "net/url_request/url_request_context_getter.h"
+ #include "testing/gtest/include/gtest/gtest.h"
+-#include "ui/display/manager/chromeos/test/action_logger_util.h"
+-#include "ui/display/manager/chromeos/test/test_native_display_delegate.h"
+ #include "ui/display/manager/fake_display_snapshot.h"
++#include "ui/display/manager/test/action_logger_util.h"
++#include "ui/display/manager/test/test_native_display_delegate.h"
+ 
+ namespace ash {
+ 
+diff --git a/ash/display/display_error_observer.h b/ash/display/display_error_observer.h
+index 27891d189800..8fd358132b7a 100644
+--- a/ash/display/display_error_observer.h
++++ b/ash/display/display_error_observer.h
+@@ -9,7 +9,7 @@
+ #include "base/compiler_specific.h"
+ #include "base/macros.h"
+ #include "base/strings/string16.h"
+-#include "ui/display/manager/chromeos/display_configurator.h"
++#include "ui/display/manager/display_configurator.h"
+ 
+ namespace ash {
+ 
+diff --git a/ash/display/display_manager_unittest.cc b/ash/display/display_manager_unittest.cc
+index 337609800223..8d551463a58d 100644
+--- a/ash/display/display_manager_unittest.cc
++++ b/ash/display/display_manager_unittest.cc
+@@ -39,13 +39,13 @@
+ #include "ui/display/display_layout_builder.h"
+ #include "ui/display/display_observer.h"
+ #include "ui/display/display_switches.h"
+-#include "ui/display/manager/chromeos/display_change_observer.h"
+-#include "ui/display/manager/chromeos/display_util.h"
+-#include "ui/display/manager/chromeos/test/touch_device_manager_test_api.h"
++#include "ui/display/manager/display_change_observer.h"
+ #include "ui/display/manager/display_layout_store.h"
+ #include "ui/display/manager/display_manager_utilities.h"
++#include "ui/display/manager/display_util.h"
+ #include "ui/display/manager/fake_display_snapshot.h"
+ #include "ui/display/manager/managed_display_info.h"
++#include "ui/display/manager/test/touch_device_manager_test_api.h"
+ #include "ui/display/screen.h"
+ #include "ui/display/test/display_manager_test_api.h"
+ #include "ui/events/devices/touchscreen_device.h"
+diff --git a/ash/display/display_shutdown_observer.cc b/ash/display/display_shutdown_observer.cc
+index ee846a697411..15fb3056b39e 100644
+--- a/ash/display/display_shutdown_observer.cc
++++ b/ash/display/display_shutdown_observer.cc
+@@ -4,7 +4,7 @@
+ 
+ #include "ash/display/display_shutdown_observer.h"
+ 
+-#include "ui/display/manager/chromeos/display_configurator.h"
++#include "ui/display/manager/display_configurator.h"
+ 
+ namespace ash {
+ 
+diff --git a/ash/display/projecting_observer.h b/ash/display/projecting_observer.h
+index 99d1f614ef6b..28b1bade667a 100644
+--- a/ash/display/projecting_observer.h
++++ b/ash/display/projecting_observer.h
+@@ -8,7 +8,7 @@
+ #include "ash/ash_export.h"
+ #include "ash/shell_observer.h"
+ #include "base/macros.h"
+-#include "ui/display/manager/chromeos/display_configurator.h"
++#include "ui/display/manager/display_configurator.h"
+ 
+ namespace chromeos {
+ class PowerManagerClient;
+diff --git a/ash/display/touch_calibrator_controller.cc b/ash/display/touch_calibrator_controller.cc
+index b367dc732cf3..b25a45d8dd98 100644
+--- a/ash/display/touch_calibrator_controller.cc
++++ b/ash/display/touch_calibrator_controller.cc
+@@ -14,7 +14,7 @@
+ #include "ash/touch/ash_touch_transform_controller.h"
+ #include "base/threading/thread_task_runner_handle.h"
+ #include "ui/aura/window_tree_host.h"
+-#include "ui/display/manager/chromeos/touch_device_manager.h"
++#include "ui/display/manager/touch_device_manager.h"
+ #include "ui/display/screen.h"
+ #include "ui/events/devices/input_device_manager.h"
+ #include "ui/events/event.h"
+diff --git a/ash/display/touch_calibrator_controller_unittest.cc b/ash/display/touch_calibrator_controller_unittest.cc
+index b4dc7f7d3151..a912720fbdb3 100644
+--- a/ash/display/touch_calibrator_controller_unittest.cc
++++ b/ash/display/touch_calibrator_controller_unittest.cc
+@@ -13,11 +13,11 @@
+ #include "base/stl_util.h"
+ #include "services/ui/public/cpp/input_devices/input_device_client_test_api.h"
+ #include "ui/display/display.h"
+-#include "ui/display/manager/chromeos/test/touch_device_manager_test_api.h"
+-#include "ui/display/manager/chromeos/test/touch_transform_controller_test_api.h"
+-#include "ui/display/manager/chromeos/touch_device_manager.h"
+-#include "ui/display/manager/chromeos/touch_transform_setter.h"
+ #include "ui/display/manager/display_manager.h"
++#include "ui/display/manager/test/touch_device_manager_test_api.h"
++#include "ui/display/manager/test/touch_transform_controller_test_api.h"
++#include "ui/display/manager/touch_device_manager.h"
++#include "ui/display/manager/touch_transform_setter.h"
+ #include "ui/display/test/display_manager_test_api.h"
+ #include "ui/events/base_event_utils.h"
+ #include "ui/events/devices/touch_device_transform.h"
+diff --git a/ash/shell.cc b/ash/shell.cc
+index f9fddc0199b9..87b2a822776b 100644
+--- a/ash/shell.cc
++++ b/ash/shell.cc
+@@ -176,11 +176,11 @@
+ #include "ui/compositor/layer.h"
+ #include "ui/compositor/layer_animator.h"
+ #include "ui/display/display.h"
+-#include "ui/display/manager/chromeos/default_touch_transform_setter.h"
+-#include "ui/display/manager/chromeos/display_change_observer.h"
+-#include "ui/display/manager/chromeos/display_configurator.h"
+-#include "ui/display/manager/chromeos/touch_transform_setter.h"
++#include "ui/display/manager/default_touch_transform_setter.h"
++#include "ui/display/manager/display_change_observer.h"
++#include "ui/display/manager/display_configurator.h"
+ #include "ui/display/manager/display_manager.h"
++#include "ui/display/manager/touch_transform_setter.h"
+ #include "ui/display/mojo/dev_display_controller.mojom.h"
+ #include "ui/display/screen.h"
+ #include "ui/display/types/native_display_delegate.h"
+diff --git a/ash/shell_port_classic.cc b/ash/shell_port_classic.cc
+index 546e45cb8e50..1666556f312c 100644
+--- a/ash/shell_port_classic.cc
++++ b/ash/shell_port_classic.cc
+@@ -27,7 +27,7 @@
+ #include "base/memory/ptr_util.h"
+ #include "components/viz/host/host_frame_sink_manager.h"
+ #include "ui/aura/env.h"
+-#include "ui/display/manager/chromeos/default_touch_transform_setter.h"
++#include "ui/display/manager/default_touch_transform_setter.h"
+ #include "ui/display/types/native_display_delegate.h"
+ #include "ui/ozone/public/ozone_platform.h"
+ 
+diff --git a/ash/system/power/power_button_controller.h b/ash/system/power/power_button_controller.h
+index a518d183f6f9..bd31e627a214 100644
+--- a/ash/system/power/power_button_controller.h
++++ b/ash/system/power/power_button_controller.h
+@@ -16,7 +16,7 @@
+ #include "base/timer/timer.h"
+ #include "chromeos/accelerometer/accelerometer_reader.h"
+ #include "chromeos/dbus/power_manager_client.h"
+-#include "ui/display/manager/chromeos/display_configurator.h"
++#include "ui/display/manager/display_configurator.h"
+ 
+ namespace base {
+ class TickClock;
+diff --git a/ash/system/power/power_event_observer.cc b/ash/system/power/power_event_observer.cc
+index 328928ec5b4b..b232f6260595 100644
+--- a/ash/system/power/power_event_observer.cc
++++ b/ash/system/power/power_event_observer.cc
+@@ -26,7 +26,7 @@
+ #include "ui/base/user_activity/user_activity_detector.h"
+ #include "ui/compositor/compositor.h"
+ #include "ui/compositor/compositor_observer.h"
+-#include "ui/display/manager/chromeos/display_configurator.h"
++#include "ui/display/manager/display_configurator.h"
+ 
+ namespace ash {
+ 
+diff --git a/ash/touch/ash_touch_transform_controller.cc b/ash/touch/ash_touch_transform_controller.cc
+index a5641dbff565..0b4216c3aa42 100644
+--- a/ash/touch/ash_touch_transform_controller.cc
++++ b/ash/touch/ash_touch_transform_controller.cc
+@@ -5,8 +5,8 @@
+ #include "ash/touch/ash_touch_transform_controller.h"
+ 
+ #include "ash/shell.h"
+-#include "ui/display/manager/chromeos/touch_transform_setter.h"
+ #include "ui/display/manager/display_manager.h"
++#include "ui/display/manager/touch_transform_setter.h"
+ 
+ namespace ash {
+ 
+diff --git a/ash/touch/ash_touch_transform_controller.h b/ash/touch/ash_touch_transform_controller.h
+index 2626ca46a2db..f6337aee1352 100644
+--- a/ash/touch/ash_touch_transform_controller.h
++++ b/ash/touch/ash_touch_transform_controller.h
+@@ -8,7 +8,7 @@
+ #include "ash/ash_export.h"
+ #include "ash/display/window_tree_host_manager.h"
+ #include "base/macros.h"
+-#include "ui/display/manager/chromeos/touch_transform_controller.h"
++#include "ui/display/manager/touch_transform_controller.h"
+ 
+ namespace display {
+ class DisplayConfigurator;
+diff --git a/ash/touch/touch_observer_hud.h b/ash/touch/touch_observer_hud.h
+index b4d01cebe0f2..16f18571eb17 100644
+--- a/ash/touch/touch_observer_hud.h
++++ b/ash/touch/touch_observer_hud.h
+@@ -13,7 +13,7 @@
+ #include "ash/display/window_tree_host_manager.h"
+ #include "base/macros.h"
+ #include "ui/display/display_observer.h"
+-#include "ui/display/manager/chromeos/display_configurator.h"
++#include "ui/display/manager/display_configurator.h"
+ #include "ui/events/event_handler.h"
+ #include "ui/views/widget/widget_observer.h"
+ 
+diff --git a/ash/touch/touch_transform_setter_mus.h b/ash/touch/touch_transform_setter_mus.h
+index a8a50fcb3107..baa3266e62b2 100644
+--- a/ash/touch/touch_transform_setter_mus.h
++++ b/ash/touch/touch_transform_setter_mus.h
+@@ -7,7 +7,7 @@
+ 
+ #include "base/macros.h"
+ #include "services/ui/public/interfaces/input_devices/touch_device_server.mojom.h"
+-#include "ui/display/manager/chromeos/touch_transform_setter.h"
++#include "ui/display/manager/touch_transform_setter.h"
+ 
+ namespace service_manager {
+ class Connector;
+diff --git a/ash/wm/lock_state_controller_unittest.cc b/ash/wm/lock_state_controller_unittest.cc
+index f63842f8854a..6496c78647c1 100644
+--- a/ash/wm/lock_state_controller_unittest.cc
++++ b/ash/wm/lock_state_controller_unittest.cc
+@@ -27,7 +27,7 @@
+ #include "base/time/time.h"
+ #include "chromeos/dbus/fake_power_manager_client.h"
+ #include "chromeos/dbus/fake_session_manager_client.h"
+-#include "ui/display/manager/chromeos/display_configurator.h"
++#include "ui/display/manager/display_configurator.h"
+ #include "ui/display/manager/fake_display_snapshot.h"
+ #include "ui/display/types/display_constants.h"
+ #include "ui/gfx/geometry/size.h"
+diff --git a/chrome/browser/chromeos/dbus/chrome_console_service_provider_delegate.cc b/chrome/browser/chromeos/dbus/chrome_console_service_provider_delegate.cc
+index c43c4cb25d88..410c33ce8d43 100644
+--- a/chrome/browser/chromeos/dbus/chrome_console_service_provider_delegate.cc
++++ b/chrome/browser/chromeos/dbus/chrome_console_service_provider_delegate.cc
+@@ -6,7 +6,7 @@
+ 
+ #include "ash/public/interfaces/constants.mojom.h"
+ #include "services/service_manager/public/cpp/connector.h"
+-#include "ui/display/manager/chromeos/display_configurator.h"
++#include "ui/display/manager/display_configurator.h"
+ 
+ namespace chromeos {
+ 
+diff --git a/chrome/browser/chromeos/dbus/chrome_display_power_service_provider_delegate.cc b/chrome/browser/chromeos/dbus/chrome_display_power_service_provider_delegate.cc
+index 066bf3dc3544..32f31e2d8f43 100644
+--- a/chrome/browser/chromeos/dbus/chrome_display_power_service_provider_delegate.cc
++++ b/chrome/browser/chromeos/dbus/chrome_display_power_service_provider_delegate.cc
+@@ -7,7 +7,7 @@
+ #include "ash/shell.h"
+ #include "ash/wm/screen_dimmer.h"
+ #include "ui/base/user_activity/user_activity_detector.h"
+-#include "ui/display/manager/chromeos/display_configurator.h"
++#include "ui/display/manager/display_configurator.h"
+ 
+ namespace chromeos {
+ 
+diff --git a/chrome/browser/chromeos/display/display_prefs_unittest.cc b/chrome/browser/chromeos/display/display_prefs_unittest.cc
+index 5f7a4a0b250b..18d8bca90a97 100644
+--- a/chrome/browser/chromeos/display/display_prefs_unittest.cc
++++ b/chrome/browser/chromeos/display/display_prefs_unittest.cc
+@@ -32,12 +32,12 @@
+ #include "components/user_manager/scoped_user_manager.h"
+ #include "ui/display/display_layout_builder.h"
+ #include "ui/display/display_switches.h"
+-#include "ui/display/manager/chromeos/display_configurator.h"
+-#include "ui/display/manager/chromeos/test/touch_device_manager_test_api.h"
++#include "ui/display/manager/display_configurator.h"
+ #include "ui/display/manager/display_layout_store.h"
+ #include "ui/display/manager/display_manager.h"
+ #include "ui/display/manager/display_manager_utilities.h"
+ #include "ui/display/manager/json_converter.h"
++#include "ui/display/manager/test/touch_device_manager_test_api.h"
+ #include "ui/display/screen.h"
+ #include "ui/display/test/display_manager_test_api.h"
+ #include "ui/gfx/geometry/vector3d_f.h"
+diff --git a/chrome/browser/chromeos/display/output_protection_controller_ash.h b/chrome/browser/chromeos/display/output_protection_controller_ash.h
+index 6e3ad37e96a3..5c0983c77233 100644
+--- a/chrome/browser/chromeos/display/output_protection_controller_ash.h
++++ b/chrome/browser/chromeos/display/output_protection_controller_ash.h
+@@ -8,7 +8,7 @@
+ #include "base/macros.h"
+ #include "base/threading/thread_checker.h"
+ #include "chrome/browser/chromeos/display/output_protection_delegate.h"
+-#include "ui/display/manager/chromeos/display_configurator.h"
++#include "ui/display/manager/display_configurator.h"
+ 
+ namespace chromeos {
+ 
+diff --git a/chrome/browser/extensions/system_display/display_info_provider_chromeos.cc b/chrome/browser/extensions/system_display/display_info_provider_chromeos.cc
+index 139858140a26..e92a5a374fe0 100644
+--- a/chrome/browser/extensions/system_display/display_info_provider_chromeos.cc
++++ b/chrome/browser/extensions/system_display/display_info_provider_chromeos.cc
+@@ -24,10 +24,10 @@
+ #include "ui/display/display.h"
+ #include "ui/display/display_layout.h"
+ #include "ui/display/display_layout_builder.h"
+-#include "ui/display/manager/chromeos/display_util.h"
+-#include "ui/display/manager/chromeos/touch_device_manager.h"
+ #include "ui/display/manager/display_manager.h"
+ #include "ui/display/manager/display_manager_utilities.h"
++#include "ui/display/manager/display_util.h"
++#include "ui/display/manager/touch_device_manager.h"
+ #include "ui/display/types/display_constants.h"
+ #include "ui/display/unified_desktop_utils.h"
+ #include "ui/gfx/geometry/point.h"
+diff --git a/chrome/browser/extensions/system_display/display_info_provider_chromeos_unittest.cc b/chrome/browser/extensions/system_display/display_info_provider_chromeos_unittest.cc
+index fb6806ff07df..75f75e96ce4d 100644
+--- a/chrome/browser/extensions/system_display/display_info_provider_chromeos_unittest.cc
++++ b/chrome/browser/extensions/system_display/display_info_provider_chromeos_unittest.cc
+@@ -24,9 +24,9 @@
+ #include "ui/display/display.h"
+ #include "ui/display/display_layout.h"
+ #include "ui/display/display_switches.h"
+-#include "ui/display/manager/chromeos/test/touch_transform_controller_test_api.h"
+-#include "ui/display/manager/chromeos/touch_transform_setter.h"
+ #include "ui/display/manager/display_manager.h"
++#include "ui/display/manager/test/touch_transform_controller_test_api.h"
++#include "ui/display/manager/touch_transform_setter.h"
+ #include "ui/display/test/display_manager_test_api.h"
+ #include "ui/display/types/display_constants.h"
+ #include "ui/events/devices/touch_device_transform.h"
+diff --git a/chrome/browser/ui/webui/chromeos/login/oobe_display_chooser_unittest.cc b/chrome/browser/ui/webui/chromeos/login/oobe_display_chooser_unittest.cc
+index e63d5176a4f6..76621b4241e7 100644
+--- a/chrome/browser/ui/webui/chromeos/login/oobe_display_chooser_unittest.cc
++++ b/chrome/browser/ui/webui/chromeos/login/oobe_display_chooser_unittest.cc
+@@ -15,8 +15,8 @@
+ #include "testing/gtest/include/gtest/gtest.h"
+ #include "ui/display/display.h"
+ #include "ui/display/display_observer.h"
+-#include "ui/display/manager/chromeos/test/touch_device_manager_test_api.h"
+ #include "ui/display/manager/display_manager.h"
++#include "ui/display/manager/test/touch_device_manager_test_api.h"
+ #include "ui/display/screen.h"
+ #include "ui/display/test/display_manager_test_api.h"
+ #include "ui/events/devices/touchscreen_device.h"
+diff --git a/chrome/browser/ui/webui/settings/md_settings_localized_strings_provider.cc b/chrome/browser/ui/webui/settings/md_settings_localized_strings_provider.cc
+index 6ee8837135be..6008898acf6c 100644
+--- a/chrome/browser/ui/webui/settings/md_settings_localized_strings_provider.cc
++++ b/chrome/browser/ui/webui/settings/md_settings_localized_strings_provider.cc
+@@ -57,7 +57,7 @@
+ #include "ui/chromeos/devicetype_utils.h"
+ #include "ui/chromeos/events/keyboard_layout_util.h"
+ #include "ui/display/display_switches.h"
+-#include "ui/display/manager/chromeos/touch_device_manager.h"
++#include "ui/display/manager/touch_device_manager.h"
+ #else
+ #include "chrome/browser/ui/webui/settings/system_handler.h"
+ #include "components/signin/core/browser/profile_management_switches.h"
+diff --git a/components/arc/power/DEPS b/components/arc/power/DEPS
+index 2a902196e7c7..8d35727fbcba 100644
+--- a/components/arc/power/DEPS
++++ b/components/arc/power/DEPS
+@@ -1,7 +1,7 @@
+ include_rules = [
+   "+ash/shell.h",
+   "+content/public/common/service_manager_connection.h",
+-  "+ui/display/manager/chromeos",
++  "+ui/display/manager",
+   "+services/device/public",
+   "+services/service_manager/public",
+ ]
+diff --git a/components/arc/power/arc_power_bridge.h b/components/arc/power/arc_power_bridge.h
+index bacd4acfbd09..5697d7c004b1 100644
+--- a/components/arc/power/arc_power_bridge.h
++++ b/components/arc/power/arc_power_bridge.h
+@@ -15,7 +15,7 @@
+ #include "components/arc/connection_observer.h"
+ #include "components/keyed_service/core/keyed_service.h"
+ #include "services/device/public/mojom/wake_lock.mojom.h"
+-#include "ui/display/manager/chromeos/display_configurator.h"
++#include "ui/display/manager/display_configurator.h"
+ 
+ namespace content {
+ class BrowserContext;
+diff --git a/extensions/shell/browser/shell_desktop_controller_aura.h b/extensions/shell/browser/shell_desktop_controller_aura.h
+index f83941bc6b8a..eb5c77870daf 100644
+--- a/extensions/shell/browser/shell_desktop_controller_aura.h
++++ b/extensions/shell/browser/shell_desktop_controller_aura.h
+@@ -20,7 +20,7 @@
+ 
+ #if defined(OS_CHROMEOS)
+ #include "chromeos/dbus/power_manager_client.h"
+-#include "ui/display/manager/chromeos/display_configurator.h"
++#include "ui/display/manager/display_configurator.h"
+ #endif
+ 
+ namespace aura {
+diff --git a/services/ui/display/output_protection.cc b/services/ui/display/output_protection.cc
+index 71737c017da1..359c123dd235 100644
+--- a/services/ui/display/output_protection.cc
++++ b/services/ui/display/output_protection.cc
+@@ -4,7 +4,7 @@
+ 
+ #include "services/ui/display/output_protection.h"
+ 
+-#include "ui/display/manager/chromeos/display_configurator.h"
++#include "ui/display/manager/display_configurator.h"
+ 
+ namespace display {
+ 
+diff --git a/services/ui/display/screen_manager_ozone_internal.cc b/services/ui/display/screen_manager_ozone_internal.cc
+index 3ef13dcf8c02..2895213f1dc6 100644
+--- a/services/ui/display/screen_manager_ozone_internal.cc
++++ b/services/ui/display/screen_manager_ozone_internal.cc
+@@ -13,11 +13,11 @@
+ #include "mojo/public/cpp/bindings/strong_binding.h"
+ #include "services/service_manager/public/cpp/binder_registry.h"
+ #include "services/ui/display/output_protection.h"
+-#include "ui/display/manager/chromeos/default_touch_transform_setter.h"
+-#include "ui/display/manager/chromeos/display_change_observer.h"
+-#include "ui/display/manager/chromeos/touch_transform_controller.h"
++#include "ui/display/manager/default_touch_transform_setter.h"
++#include "ui/display/manager/display_change_observer.h"
+ #include "ui/display/manager/display_layout_store.h"
+ #include "ui/display/manager/display_manager_utilities.h"
++#include "ui/display/manager/touch_transform_controller.h"
+ #include "ui/display/screen.h"
+ #include "ui/display/screen_base.h"
+ #include "ui/display/types/display_snapshot.h"
+diff --git a/services/ui/display/screen_manager_ozone_internal.h b/services/ui/display/screen_manager_ozone_internal.h
+index eb1fe492b57b..cb712b6d6b43 100644
+--- a/services/ui/display/screen_manager_ozone_internal.h
++++ b/services/ui/display/screen_manager_ozone_internal.h
+@@ -17,7 +17,7 @@
+ #include "services/ui/public/interfaces/display/output_protection.mojom.h"
+ #include "ui/display/display.h"
+ #include "ui/display/display_observer.h"
+-#include "ui/display/manager/chromeos/display_configurator.h"
++#include "ui/display/manager/display_configurator.h"
+ #include "ui/display/manager/display_manager.h"
+ #include "ui/display/mojo/dev_display_controller.mojom.h"
+ #include "ui/display/types/display_constants.h"
+diff --git a/services/ui/input_devices/touch_device_server.cc b/services/ui/input_devices/touch_device_server.cc
+index ca1001e446aa..3ba45f4ac865 100644
+--- a/services/ui/input_devices/touch_device_server.cc
++++ b/services/ui/input_devices/touch_device_server.cc
+@@ -7,7 +7,7 @@
+ #include <utility>
+ #include <vector>
+ 
+-#include "ui/display/manager/chromeos/default_touch_transform_setter.h"
++#include "ui/display/manager/default_touch_transform_setter.h"
+ #include "ui/events/devices/input_device.h"
+ #include "ui/events/devices/touchscreen_device.h"
+ 
+diff --git a/ui/display/BUILD.gn b/ui/display/BUILD.gn
+index c19111efec97..b55a4be2b899 100644
+--- a/ui/display/BUILD.gn
++++ b/ui/display/BUILD.gn
+@@ -4,6 +4,7 @@
+ 
+ import("//build/config/ui.gni")
+ import("//testing/test.gni")
++import("//ui/display/display.gni")
+ 
+ component("display") {
+   sources = [
+@@ -98,18 +99,6 @@ component("display_manager_test_api") {
+ static_library("test_support") {
+   testonly = true
+   sources = [
+-    "manager/chromeos/test/action_logger.cc",
+-    "manager/chromeos/test/action_logger.h",
+-    "manager/chromeos/test/action_logger_util.cc",
+-    "manager/chromeos/test/action_logger_util.h",
+-    "manager/chromeos/test/test_display_layout_manager.cc",
+-    "manager/chromeos/test/test_display_layout_manager.h",
+-    "manager/chromeos/test/test_native_display_delegate.cc",
+-    "manager/chromeos/test/test_native_display_delegate.h",
+-    "manager/chromeos/test/touch_device_manager_test_api.cc",
+-    "manager/chromeos/test/touch_device_manager_test_api.h",
+-    "manager/chromeos/test/touch_transform_controller_test_api.cc",
+-    "manager/chromeos/test/touch_transform_controller_test_api.h",
+     "test/display_matchers.cc",
+     "test/display_matchers.h",
+     "test/display_test_util.h",
+@@ -121,6 +110,23 @@ static_library("test_support") {
+     "win/test/screen_util_win.h",
+   ]
+ 
++  if (build_display_configuration) {
++    sources += [
++      "manager/test/action_logger.cc",
++      "manager/test/action_logger.h",
++      "manager/test/action_logger_util.cc",
++      "manager/test/action_logger_util.h",
++      "manager/test/test_display_layout_manager.cc",
++      "manager/test/test_display_layout_manager.h",
++      "manager/test/test_native_display_delegate.cc",
++      "manager/test/test_native_display_delegate.h",
++      "manager/test/touch_device_manager_test_api.cc",
++      "manager/test/touch_device_manager_test_api.h",
++      "manager/test/touch_transform_controller_test_api.cc",
++      "manager/test/touch_transform_controller_test_api.h",
++    ]
++  }
++
+   public_deps = [
+     ":display",
+     "//ui/display/manager",
+@@ -144,15 +150,6 @@ test("display_unittests") {
+     "display_layout_unittest.cc",
+     "display_list_unittest.cc",
+     "display_unittest.cc",
+-    "manager/chromeos/apply_content_protection_task_unittest.cc",
+-    "manager/chromeos/configure_displays_task_unittest.cc",
+-    "manager/chromeos/display_change_observer_unittest.cc",
+-    "manager/chromeos/display_configurator_unittest.cc",
+-    "manager/chromeos/display_utils_unittest.cc",
+-    "manager/chromeos/query_content_protection_task_unittest.cc",
+-    "manager/chromeos/touch_device_manager_unittest.cc",
+-    "manager/chromeos/touch_transform_controller_unittest.cc",
+-    "manager/chromeos/update_display_configuration_task_unittest.cc",
+     "manager/display_manager_utilities_unittest.cc",
+     "manager/fake_display_snapshot_unittest.cc",
+     "manager/json_converter_unittest.cc",
+@@ -166,6 +163,20 @@ test("display_unittests") {
+     "win/screen_win_unittest.cc",
+   ]
+ 
++  if (build_display_configuration) {
++    sources += [
++      "manager/apply_content_protection_task_unittest.cc",
++      "manager/configure_displays_task_unittest.cc",
++      "manager/display_change_observer_unittest.cc",
++      "manager/display_configurator_unittest.cc",
++      "manager/display_utils_unittest.cc",
++      "manager/query_content_protection_task_unittest.cc",
++      "manager/touch_device_manager_unittest.cc",
++      "manager/touch_transform_controller_unittest.cc",
++      "manager/update_display_configuration_task_unittest.cc",
++    ]
++  }
++
+   deps = [
+     ":display",
+     ":display_manager_test_api",
+diff --git a/ui/display/display.gni b/ui/display/display.gni
+new file mode 100644
+index 000000000000..3c2d327107fa
+--- /dev/null
++++ b/ui/display/display.gni
+@@ -0,0 +1,8 @@
++# Copyright 2018 The Chromium Authors. All rights reserved.
++# Use of this source code is governed by a BSD-style license that can be
++# found in the LICENSE file.
++
++declare_args() {
++  # Build Chrome OS display configuration code.
++  build_display_configuration = is_chromeos
++}
+diff --git a/ui/display/manager/BUILD.gn b/ui/display/manager/BUILD.gn
+index 0b7946e9471a..66954c3d2bd6 100644
+--- a/ui/display/manager/BUILD.gn
++++ b/ui/display/manager/BUILD.gn
+@@ -4,31 +4,10 @@
+ 
+ import("//build/config/jumbo.gni")
+ import("//build/config/ui.gni")
++import("//ui/display/display.gni")
+ 
+ jumbo_component("manager") {
+   sources = [
+-    "chromeos/apply_content_protection_task.cc",
+-    "chromeos/apply_content_protection_task.h",
+-    "chromeos/configure_displays_task.cc",
+-    "chromeos/configure_displays_task.h",
+-    "chromeos/default_touch_transform_setter.cc",
+-    "chromeos/default_touch_transform_setter.h",
+-    "chromeos/display_change_observer.cc",
+-    "chromeos/display_change_observer.h",
+-    "chromeos/display_configurator.cc",
+-    "chromeos/display_configurator.h",
+-    "chromeos/display_layout_manager.h",
+-    "chromeos/display_util.cc",
+-    "chromeos/display_util.h",
+-    "chromeos/query_content_protection_task.cc",
+-    "chromeos/query_content_protection_task.h",
+-    "chromeos/touch_device_manager.cc",
+-    "chromeos/touch_device_manager.h",
+-    "chromeos/touch_transform_controller.cc",
+-    "chromeos/touch_transform_controller.h",
+-    "chromeos/touch_transform_setter.h",
+-    "chromeos/update_display_configuration_task.cc",
+-    "chromeos/update_display_configuration_task.h",
+     "display_layout_store.cc",
+     "display_layout_store.h",
+     "display_manager.cc",
+@@ -48,6 +27,33 @@ jumbo_component("manager") {
+     "managed_display_info.h",
+   ]
+ 
++  if (build_display_configuration) {
++    sources += [
++      "apply_content_protection_task.cc",
++      "apply_content_protection_task.h",
++      "configure_displays_task.cc",
++      "configure_displays_task.h",
++      "default_touch_transform_setter.cc",
++      "default_touch_transform_setter.h",
++      "display_change_observer.cc",
++      "display_change_observer.h",
++      "display_configurator.cc",
++      "display_configurator.h",
++      "display_layout_manager.h",
++      "display_util.cc",
++      "display_util.h",
++      "query_content_protection_task.cc",
++      "query_content_protection_task.h",
++      "touch_device_manager.cc",
++      "touch_device_manager.h",
++      "touch_transform_controller.cc",
++      "touch_transform_controller.h",
++      "touch_transform_setter.h",
++      "update_display_configuration_task.cc",
++      "update_display_configuration_task.h",
++    ]
++  }
++
+   public_deps = [
+     "//ui/display",
+   ]
+diff --git a/ui/display/manager/DEPS b/ui/display/manager/DEPS
+index 758e0c84b035..f30e4ef9f9aa 100644
+--- a/ui/display/manager/DEPS
++++ b/ui/display/manager/DEPS
+@@ -1,6 +1,25 @@
+ include_rules = [
+-  "+chromeos/system",
++  "+chromeos",
+   "+ui/base",
+   "+ui/events/devices",
++  "+ui/events/platform_event.h",
+   "+ui/strings",
++  # DeviceDataManager is not created in all environments (such as ash when
++  # running in mus/mash).
++  "-ui/events/devices/device_data_manager.h",
+ ]
++
++specific_include_rules = {
++  "default_touch_transform_setter.cc": [
++    # DefaultTouchTransformSetter only runs in environments where
++    # DeviceDataManager exists.
++    "+ui/events/devices/device_data_manager.h",
++  ],
++  "touch_transform_controller.cc": [
++    # Needed for using SkMatrix.
++    "+third_party/skia",
++  ],
++  "touch_transform_controller_unittest.cc": [
++    "+ui/events/devices/device_data_manager.h",
++  ],
++}
+diff --git a/ui/display/manager/chromeos/apply_content_protection_task.cc b/ui/display/manager/apply_content_protection_task.cc
+similarity index 97%
+rename from ui/display/manager/chromeos/apply_content_protection_task.cc
+rename to ui/display/manager/apply_content_protection_task.cc
+index 612a563cf24d..82ca7cd171a0 100644
+--- a/ui/display/manager/chromeos/apply_content_protection_task.cc
++++ b/ui/display/manager/apply_content_protection_task.cc
+@@ -2,9 +2,9 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "ui/display/manager/chromeos/apply_content_protection_task.h"
++#include "ui/display/manager/apply_content_protection_task.h"
+ 
+-#include "ui/display/manager/chromeos/display_layout_manager.h"
++#include "ui/display/manager/display_layout_manager.h"
+ #include "ui/display/types/display_snapshot.h"
+ #include "ui/display/types/native_display_delegate.h"
+ 
+diff --git a/ui/display/manager/chromeos/apply_content_protection_task.h b/ui/display/manager/apply_content_protection_task.h
+similarity index 90%
+rename from ui/display/manager/chromeos/apply_content_protection_task.h
+rename to ui/display/manager/apply_content_protection_task.h
+index e8680ff771f0..2d8610fe745f 100644
+--- a/ui/display/manager/chromeos/apply_content_protection_task.h
++++ b/ui/display/manager/apply_content_protection_task.h
+@@ -2,8 +2,8 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#ifndef UI_DISPLAY_MANAGER_CHROMEOS_APPLY_CONTENT_PROTECTION_TASK_H_
+-#define UI_DISPLAY_MANAGER_CHROMEOS_APPLY_CONTENT_PROTECTION_TASK_H_
++#ifndef UI_DISPLAY_MANAGER_APPLY_CONTENT_PROTECTION_TASK_H_
++#define UI_DISPLAY_MANAGER_APPLY_CONTENT_PROTECTION_TASK_H_
+ 
+ #include <stddef.h>
+ #include <stdint.h>
+@@ -13,7 +13,7 @@
+ 
+ #include "base/macros.h"
+ #include "base/memory/weak_ptr.h"
+-#include "ui/display/manager/chromeos/display_configurator.h"
++#include "ui/display/manager/display_configurator.h"
+ 
+ namespace display {
+ 
+@@ -85,4 +85,4 @@ class DISPLAY_MANAGER_EXPORT ApplyContentProtectionTask {
+ 
+ }  // namespace display
+ 
+-#endif  // UI_DISPLAY_MANAGER_CHROMEOS_APPLY_CONTENT_PROTECTION_TASK_H_
++#endif  // UI_DISPLAY_MANAGER_APPLY_CONTENT_PROTECTION_TASK_H_
+diff --git a/ui/display/manager/chromeos/apply_content_protection_task_unittest.cc b/ui/display/manager/apply_content_protection_task_unittest.cc
+similarity index 94%
+rename from ui/display/manager/chromeos/apply_content_protection_task_unittest.cc
+rename to ui/display/manager/apply_content_protection_task_unittest.cc
+index db211bbecfab..e63e244da27a 100644
+--- a/ui/display/manager/chromeos/apply_content_protection_task_unittest.cc
++++ b/ui/display/manager/apply_content_protection_task_unittest.cc
+@@ -2,7 +2,7 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "ui/display/manager/chromeos/apply_content_protection_task.h"
++#include "ui/display/manager/apply_content_protection_task.h"
+ 
+ #include <stdint.h>
+ #include <memory>
+@@ -12,11 +12,11 @@
+ #include "base/bind.h"
+ #include "base/macros.h"
+ #include "testing/gtest/include/gtest/gtest.h"
+-#include "ui/display/manager/chromeos/display_layout_manager.h"
+-#include "ui/display/manager/chromeos/test/action_logger_util.h"
+-#include "ui/display/manager/chromeos/test/test_display_layout_manager.h"
+-#include "ui/display/manager/chromeos/test/test_native_display_delegate.h"
++#include "ui/display/manager/display_layout_manager.h"
+ #include "ui/display/manager/fake_display_snapshot.h"
++#include "ui/display/manager/test/action_logger_util.h"
++#include "ui/display/manager/test/test_display_layout_manager.h"
++#include "ui/display/manager/test/test_native_display_delegate.h"
+ 
+ namespace display {
+ namespace test {
+diff --git a/ui/display/manager/chromeos/DEPS b/ui/display/manager/chromeos/DEPS
+deleted file mode 100644
+index c11eb4b186c3..000000000000
+--- a/ui/display/manager/chromeos/DEPS
++++ /dev/null
+@@ -1,21 +0,0 @@
+-include_rules = [
+-  "+chromeos",
+-  "+ui/events/platform_event.h",
+-  # DeviceDataManager is not created in all environments (such as ash when
+-  # running in mus/mash).
+-  "-ui/events/devices/device_data_manager.h",
+-]
+-
+-specific_include_rules = {
+-  "default_touch_transform_setter.cc": [
+-    # DefaultTouchTransformSetter only runs in environments where
+-    # DeviceDataManager exists.
+-    "+ui/events/devices/device_data_manager.h",
+-  ],
+-  "touch_transform_controller.cc": [
+-    "+third_party/skia",
+-  ],
+-  "touch_transform_controller_unittest.cc": [
+-    "+ui/events/devices/device_data_manager.h",
+-  ],
+-}
+diff --git a/ui/display/manager/chromeos/configure_displays_task.cc b/ui/display/manager/configure_displays_task.cc
+similarity index 97%
+rename from ui/display/manager/chromeos/configure_displays_task.cc
+rename to ui/display/manager/configure_displays_task.cc
+index 75c2a5cc526c..6ef399ae5a8f 100644
+--- a/ui/display/manager/chromeos/configure_displays_task.cc
++++ b/ui/display/manager/configure_displays_task.cc
+@@ -2,12 +2,12 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "ui/display/manager/chromeos/configure_displays_task.h"
++#include "ui/display/manager/configure_displays_task.h"
+ 
+ #include "base/auto_reset.h"
+ #include "base/bind.h"
+ #include "base/containers/queue.h"
+-#include "ui/display/manager/chromeos/display_util.h"
++#include "ui/display/manager/display_util.h"
+ #include "ui/display/types/display_snapshot.h"
+ #include "ui/display/types/native_display_delegate.h"
+ 
+diff --git a/ui/display/manager/chromeos/configure_displays_task.h b/ui/display/manager/configure_displays_task.h
+similarity index 93%
+rename from ui/display/manager/chromeos/configure_displays_task.h
+rename to ui/display/manager/configure_displays_task.h
+index 8c5e05000329..6c44d936e1f8 100644
+--- a/ui/display/manager/chromeos/configure_displays_task.h
++++ b/ui/display/manager/configure_displays_task.h
+@@ -2,8 +2,8 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#ifndef UI_DISPLAY_MANAGER_CHROMEOS_CONFIGURE_DISPLAYS_TASK_H_
+-#define UI_DISPLAY_MANAGER_CHROMEOS_CONFIGURE_DISPLAYS_TASK_H_
++#ifndef UI_DISPLAY_MANAGER_CONFIGURE_DISPLAYS_TASK_H_
++#define UI_DISPLAY_MANAGER_CONFIGURE_DISPLAYS_TASK_H_
+ 
+ #include <stddef.h>
+ 
+@@ -95,4 +95,4 @@ class DISPLAY_MANAGER_EXPORT ConfigureDisplaysTask
+ 
+ }  // namespace display
+ 
+-#endif  // UI_DISPLAY_MANAGER_CHROMEOS_CONFIGURE_DISPLAYS_TASK_H_
++#endif  // UI_DISPLAY_MANAGER_CONFIGURE_DISPLAYS_TASK_H_
+diff --git a/ui/display/manager/chromeos/configure_displays_task_unittest.cc b/ui/display/manager/configure_displays_task_unittest.cc
+similarity index 97%
+rename from ui/display/manager/chromeos/configure_displays_task_unittest.cc
+rename to ui/display/manager/configure_displays_task_unittest.cc
+index 40d323d3bb0d..a3e478cd5db3 100644
+--- a/ui/display/manager/chromeos/configure_displays_task_unittest.cc
++++ b/ui/display/manager/configure_displays_task_unittest.cc
+@@ -9,10 +9,10 @@
+ #include "base/message_loop/message_loop.h"
+ #include "base/run_loop.h"
+ #include "testing/gtest/include/gtest/gtest.h"
+-#include "ui/display/manager/chromeos/configure_displays_task.h"
+-#include "ui/display/manager/chromeos/test/action_logger_util.h"
+-#include "ui/display/manager/chromeos/test/test_native_display_delegate.h"
++#include "ui/display/manager/configure_displays_task.h"
+ #include "ui/display/manager/fake_display_snapshot.h"
++#include "ui/display/manager/test/action_logger_util.h"
++#include "ui/display/manager/test/test_native_display_delegate.h"
+ 
+ namespace display {
+ namespace test {
+diff --git a/ui/display/manager/chromeos/default_touch_transform_setter.cc b/ui/display/manager/default_touch_transform_setter.cc
+similarity index 90%
+rename from ui/display/manager/chromeos/default_touch_transform_setter.cc
+rename to ui/display/manager/default_touch_transform_setter.cc
+index 1e9f12c9a842..0978ab416ccd 100644
+--- a/ui/display/manager/chromeos/default_touch_transform_setter.cc
++++ b/ui/display/manager/default_touch_transform_setter.cc
+@@ -2,7 +2,7 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "ui/display/manager/chromeos/default_touch_transform_setter.h"
++#include "ui/display/manager/default_touch_transform_setter.h"
+ 
+ #include "ui/events/devices/device_data_manager.h"
+ #include "ui/events/devices/touch_device_transform.h"
+diff --git a/ui/display/manager/chromeos/default_touch_transform_setter.h b/ui/display/manager/default_touch_transform_setter.h
+similarity index 69%
+rename from ui/display/manager/chromeos/default_touch_transform_setter.h
+rename to ui/display/manager/default_touch_transform_setter.h
+index 7f64f27c10ee..c3146994f630 100644
+--- a/ui/display/manager/chromeos/default_touch_transform_setter.h
++++ b/ui/display/manager/default_touch_transform_setter.h
+@@ -2,11 +2,11 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#ifndef UI_DISPLAY_MANAGER_CHROMEOS_DEFAULT_TOUCH_TRANSFORM_SETTER_H_
+-#define UI_DISPLAY_MANAGER_CHROMEOS_DEFAULT_TOUCH_TRANSFORM_SETTER_H_
++#ifndef UI_DISPLAY_MANAGER_DEFAULT_TOUCH_TRANSFORM_SETTER_H_
++#define UI_DISPLAY_MANAGER_DEFAULT_TOUCH_TRANSFORM_SETTER_H_
+ 
+ #include "base/macros.h"
+-#include "ui/display/manager/chromeos/touch_transform_setter.h"
++#include "ui/display/manager/touch_transform_setter.h"
+ 
+ namespace display {
+ 
+@@ -26,4 +26,4 @@ class DISPLAY_MANAGER_EXPORT DefaultTouchTransformSetter
+ 
+ }  // namespace display
+ 
+-#endif  // UI_DISPLAY_MANAGER_CHROMEOS_DEFAULT_TOUCH_TRANSFORM_SETTER_H_
++#endif  // UI_DISPLAY_MANAGER_DEFAULT_TOUCH_TRANSFORM_SETTER_H_
+diff --git a/ui/display/manager/chromeos/display_change_observer.cc b/ui/display/manager/display_change_observer.cc
+similarity index 99%
+rename from ui/display/manager/chromeos/display_change_observer.cc
+rename to ui/display/manager/display_change_observer.cc
+index bf9608d8fc1f..28bdc2d5c92f 100644
+--- a/ui/display/manager/chromeos/display_change_observer.cc
++++ b/ui/display/manager/display_change_observer.cc
+@@ -2,7 +2,7 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "ui/display/manager/chromeos/display_change_observer.h"
++#include "ui/display/manager/display_change_observer.h"
+ 
+ #include <algorithm>
+ #include <map>
+@@ -17,10 +17,10 @@
+ #include "ui/display/display.h"
+ #include "ui/display/display_layout.h"
+ #include "ui/display/display_switches.h"
+-#include "ui/display/manager/chromeos/touch_device_manager.h"
+ #include "ui/display/manager/display_layout_store.h"
+ #include "ui/display/manager/display_manager.h"
+ #include "ui/display/manager/display_manager_utilities.h"
++#include "ui/display/manager/touch_device_manager.h"
+ #include "ui/display/types/display_mode.h"
+ #include "ui/display/types/display_snapshot.h"
+ #include "ui/display/util/display_util.h"
+diff --git a/ui/display/manager/chromeos/display_change_observer.h b/ui/display/manager/display_change_observer.h
+similarity index 91%
+rename from ui/display/manager/chromeos/display_change_observer.h
+rename to ui/display/manager/display_change_observer.h
+index 66cae8da8da2..7cafa0e90481 100644
+--- a/ui/display/manager/chromeos/display_change_observer.h
++++ b/ui/display/manager/display_change_observer.h
+@@ -2,8 +2,8 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#ifndef UI_DISPLAY_MANAGER_CHROMEOS_DISPLAY_CHANGE_OBSERVER_H_
+-#define UI_DISPLAY_MANAGER_CHROMEOS_DISPLAY_CHANGE_OBSERVER_H_
++#ifndef UI_DISPLAY_MANAGER_DISPLAY_CHANGE_OBSERVER_H_
++#define UI_DISPLAY_MANAGER_DISPLAY_CHANGE_OBSERVER_H_
+ 
+ #include <stdint.h>
+ 
+@@ -11,7 +11,7 @@
+ #include <vector>
+ 
+ #include "base/macros.h"
+-#include "ui/display/manager/chromeos/display_configurator.h"
++#include "ui/display/manager/display_configurator.h"
+ #include "ui/display/manager/display_manager_export.h"
+ #include "ui/display/manager/managed_display_info.h"
+ #include "ui/events/devices/input_device_event_observer.h"
+@@ -77,4 +77,4 @@ class DISPLAY_MANAGER_EXPORT DisplayChangeObserver
+ 
+ }  // namespace display
+ 
+-#endif  // UI_DISPLAY_MANAGER_CHROMEOS_DISPLAY_CHANGE_OBSERVER_H_
++#endif  // UI_DISPLAY_MANAGER_DISPLAY_CHANGE_OBSERVER_H_
+diff --git a/ui/display/manager/chromeos/display_change_observer_unittest.cc b/ui/display/manager/display_change_observer_unittest.cc
+similarity index 99%
+rename from ui/display/manager/chromeos/display_change_observer_unittest.cc
+rename to ui/display/manager/display_change_observer_unittest.cc
+index 7d2922dc9ff8..be10249d56f3 100644
+--- a/ui/display/manager/chromeos/display_change_observer_unittest.cc
++++ b/ui/display/manager/display_change_observer_unittest.cc
+@@ -2,14 +2,14 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "ui/display/manager/chromeos/display_change_observer.h"
++#include "ui/display/manager/display_change_observer.h"
+ 
+ #include <string>
+ 
+ #include "base/test/scoped_feature_list.h"
+ #include "testing/gtest/include/gtest/gtest.h"
+ #include "ui/display/display_switches.h"
+-#include "ui/display/manager/chromeos/display_configurator.h"
++#include "ui/display/manager/display_configurator.h"
+ #include "ui/display/manager/fake_display_snapshot.h"
+ #include "ui/display/manager/managed_display_info.h"
+ #include "ui/display/types/display_mode.h"
+diff --git a/ui/display/manager/chromeos/display_configurator.cc b/ui/display/manager/display_configurator.cc
+similarity index 99%
+rename from ui/display/manager/chromeos/display_configurator.cc
+rename to ui/display/manager/display_configurator.cc
+index e939dbac1f59..7ff4c289df63 100644
+--- a/ui/display/manager/chromeos/display_configurator.cc
++++ b/ui/display/manager/display_configurator.cc
+@@ -2,7 +2,7 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "ui/display/manager/chromeos/display_configurator.h"
++#include "ui/display/manager/display_configurator.h"
+ 
+ #include <stddef.h>
+ #include <utility>
+@@ -15,10 +15,10 @@
+ #include "chromeos/system/devicemode.h"
+ #include "ui/display/display.h"
+ #include "ui/display/display_switches.h"
+-#include "ui/display/manager/chromeos/apply_content_protection_task.h"
+-#include "ui/display/manager/chromeos/display_layout_manager.h"
+-#include "ui/display/manager/chromeos/display_util.h"
+-#include "ui/display/manager/chromeos/update_display_configuration_task.h"
++#include "ui/display/manager/apply_content_protection_task.h"
++#include "ui/display/manager/display_layout_manager.h"
++#include "ui/display/manager/display_util.h"
++#include "ui/display/manager/update_display_configuration_task.h"
+ #include "ui/display/types/display_mode.h"
+ #include "ui/display/types/display_snapshot.h"
+ #include "ui/display/types/native_display_delegate.h"
+diff --git a/ui/display/manager/chromeos/display_configurator.h b/ui/display/manager/display_configurator.h
+similarity index 98%
+rename from ui/display/manager/chromeos/display_configurator.h
+rename to ui/display/manager/display_configurator.h
+index 3087d989592a..59959390925d 100644
+--- a/ui/display/manager/chromeos/display_configurator.h
++++ b/ui/display/manager/display_configurator.h
+@@ -2,8 +2,8 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#ifndef UI_DISPLAY_MANAGER_CHROMEOS_DISPLAY_CONFIGURATOR_H_
+-#define UI_DISPLAY_MANAGER_CHROMEOS_DISPLAY_CONFIGURATOR_H_
++#ifndef UI_DISPLAY_MANAGER_DISPLAY_CONFIGURATOR_H_
++#define UI_DISPLAY_MANAGER_DISPLAY_CONFIGURATOR_H_
+ 
+ #include <stdint.h>
+ 
+@@ -19,8 +19,8 @@
+ #include "base/optional.h"
+ #include "base/timer/timer.h"
+ #include "third_party/cros_system_api/dbus/service_constants.h"
+-#include "ui/display/manager/chromeos/query_content_protection_task.h"
+ #include "ui/display/manager/display_manager_export.h"
++#include "ui/display/manager/query_content_protection_task.h"
+ #include "ui/display/types/display_constants.h"
+ #include "ui/display/types/native_display_observer.h"
+ #include "ui/display/util/display_util.h"
+@@ -471,4 +471,4 @@ class DISPLAY_MANAGER_EXPORT DisplayConfigurator
+ 
+ }  // namespace display
+ 
+-#endif  // UI_DISPLAY_MANAGER_CHROMEOS_DISPLAY_CONFIGURATOR_H_
++#endif  // UI_DISPLAY_MANAGER_DISPLAY_CONFIGURATOR_H_
+diff --git a/ui/display/manager/chromeos/display_configurator_unittest.cc b/ui/display/manager/display_configurator_unittest.cc
+similarity index 99%
+rename from ui/display/manager/chromeos/display_configurator_unittest.cc
+rename to ui/display/manager/display_configurator_unittest.cc
+index 623add64ef47..cc39ab39d111 100644
+--- a/ui/display/manager/chromeos/display_configurator_unittest.cc
++++ b/ui/display/manager/display_configurator_unittest.cc
+@@ -2,7 +2,7 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "ui/display/manager/chromeos/display_configurator.h"
++#include "ui/display/manager/display_configurator.h"
+ 
+ #include <stddef.h>
+ #include <stdint.h>
+@@ -13,9 +13,9 @@
+ #include "base/run_loop.h"
+ #include "chromeos/chromeos_switches.cc"
+ #include "testing/gtest/include/gtest/gtest.h"
+-#include "ui/display/manager/chromeos/test/action_logger_util.h"
+-#include "ui/display/manager/chromeos/test/test_native_display_delegate.h"
+ #include "ui/display/manager/fake_display_snapshot.h"
++#include "ui/display/manager/test/action_logger_util.h"
++#include "ui/display/manager/test/test_native_display_delegate.h"
+ #include "ui/display/util/display_util.h"
+ 
+ namespace display {
+diff --git a/ui/display/manager/chromeos/display_layout_manager.h b/ui/display/manager/display_layout_manager.h
+similarity index 85%
+rename from ui/display/manager/chromeos/display_layout_manager.h
+rename to ui/display/manager/display_layout_manager.h
+index c43f2bbb00e0..ae7c492dbea4 100644
+--- a/ui/display/manager/chromeos/display_layout_manager.h
++++ b/ui/display/manager/display_layout_manager.h
+@@ -2,13 +2,13 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#ifndef UI_DISPLAY_MANAGER_CHROMEOS_DISPLAY_LAYOUT_MANAGER_H_
+-#define UI_DISPLAY_MANAGER_CHROMEOS_DISPLAY_LAYOUT_MANAGER_H_
++#ifndef UI_DISPLAY_MANAGER_DISPLAY_LAYOUT_MANAGER_H_
++#define UI_DISPLAY_MANAGER_DISPLAY_LAYOUT_MANAGER_H_
+ 
+ #include <vector>
+ 
+ #include "third_party/cros_system_api/dbus/service_constants.h"
+-#include "ui/display/manager/chromeos/display_configurator.h"
++#include "ui/display/manager/display_configurator.h"
+ #include "ui/display/types/display_constants.h"
+ 
+ namespace display {
+@@ -48,4 +48,4 @@ class DisplayLayoutManager {
+ 
+ }  // namespace display
+ 
+-#endif  // UI_DISPLAY_MANAGER_CHROMEOS_DISPLAY_LAYOUT_MANAGER_H_
++#endif  // UI_DISPLAY_MANAGER_DISPLAY_LAYOUT_MANAGER_H_
+diff --git a/ui/display/manager/display_manager.cc b/ui/display/manager/display_manager.cc
+index d587d2295377..5301ee421cd8 100644
+--- a/ui/display/manager/display_manager.cc
++++ b/ui/display/manager/display_manager.cc
+@@ -41,7 +41,7 @@
+ #if defined(OS_CHROMEOS)
+ #include "base/sys_info.h"
+ #include "chromeos/system/devicemode.h"
+-#include "ui/display/manager/chromeos/display_util.h"
++#include "ui/display/manager/display_util.h"
+ #endif
+ 
+ #if defined(OS_WIN)
+diff --git a/ui/display/manager/display_manager.h b/ui/display/manager/display_manager.h
+index 6de527a6c4f1..93b310aa5d91 100644
+--- a/ui/display/manager/display_manager.h
++++ b/ui/display/manager/display_manager.h
+@@ -34,8 +34,8 @@
+ 
+ #if defined(OS_CHROMEOS)
+ #include "base/optional.h"
+-#include "ui/display/manager/chromeos/display_configurator.h"
+-#include "ui/display/manager/chromeos/touch_device_manager.h"
++#include "ui/display/manager/display_configurator.h"
++#include "ui/display/manager/touch_device_manager.h"
+ #endif
+ 
+ namespace gfx {
+diff --git a/ui/display/manager/chromeos/display_util.cc b/ui/display/manager/display_util.cc
+similarity index 99%
+rename from ui/display/manager/chromeos/display_util.cc
+rename to ui/display/manager/display_util.cc
+index b6e66143748d..e3ff3d3f386d 100644
+--- a/ui/display/manager/chromeos/display_util.cc
++++ b/ui/display/manager/display_util.cc
+@@ -2,7 +2,7 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "ui/display/manager/chromeos/display_util.h"
++#include "ui/display/manager/display_util.h"
+ 
+ #include <stddef.h>
+ #include <algorithm>
+diff --git a/ui/display/manager/chromeos/display_util.h b/ui/display/manager/display_util.h
+similarity index 90%
+rename from ui/display/manager/chromeos/display_util.h
+rename to ui/display/manager/display_util.h
+index 0f04c8163924..3c5686eb3f12 100644
+--- a/ui/display/manager/chromeos/display_util.h
++++ b/ui/display/manager/display_util.h
+@@ -2,8 +2,8 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#ifndef UI_DISPLAY_MANAGER_CHROMEOS_DISPLAY_UTIL_H_
+-#define UI_DISPLAY_MANAGER_CHROMEOS_DISPLAY_UTIL_H_
++#ifndef UI_DISPLAY_MANAGER_DISPLAY_UTIL_H_
++#define UI_DISPLAY_MANAGER_DISPLAY_UTIL_H_
+ 
+ #include <string>
+ #include <vector>
+@@ -42,4 +42,4 @@ GetDisplayZoomFactors(const ManagedDisplayMode& mode);
+ 
+ }  // namespace display
+ 
+-#endif  // UI_DISPLAY_MANAGER_CHROMEOS_DISPLAY_UTIL_H_
++#endif  // UI_DISPLAY_MANAGER_DISPLAY_UTIL_H_
+diff --git a/ui/display/manager/chromeos/display_utils_unittest.cc b/ui/display/manager/display_utils_unittest.cc
+similarity index 98%
+rename from ui/display/manager/chromeos/display_utils_unittest.cc
+rename to ui/display/manager/display_utils_unittest.cc
+index 0eeb386e0032..446e91693d2f 100644
+--- a/ui/display/manager/chromeos/display_utils_unittest.cc
++++ b/ui/display/manager/display_utils_unittest.cc
+@@ -2,7 +2,7 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "ui/display/manager/chromeos/display_util.h"
++#include "ui/display/manager/display_util.h"
+ 
+ #include <vector>
+ 
+diff --git a/ui/display/manager/managed_display_info_unittest.cc b/ui/display/manager/managed_display_info_unittest.cc
+index a4da8dd23282..5ce2eb2b1c63 100644
+--- a/ui/display/manager/managed_display_info_unittest.cc
++++ b/ui/display/manager/managed_display_info_unittest.cc
+@@ -7,11 +7,8 @@
+ #include "testing/gtest/include/gtest/gtest.h"
+ 
+ #if defined(OS_CHROMEOS)
+-#include "ui/display/manager/chromeos/touch_device_manager.h"
+-#endif
+-
+-#if defined(OS_CHROMEOS)
+-#include "ui/display/manager/chromeos/touch_device_manager.h"
++#include "ui/display/manager/touch_device_manager.h"
++#include "ui/display/manager/touch_device_manager.h"
+ #endif
+ 
+ namespace display {
+diff --git a/ui/display/manager/chromeos/query_content_protection_task.cc b/ui/display/manager/query_content_protection_task.cc
+similarity index 95%
+rename from ui/display/manager/chromeos/query_content_protection_task.cc
+rename to ui/display/manager/query_content_protection_task.cc
+index d454970d7404..167b171ab23a 100644
+--- a/ui/display/manager/chromeos/query_content_protection_task.cc
++++ b/ui/display/manager/query_content_protection_task.cc
+@@ -2,9 +2,9 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "ui/display/manager/chromeos/query_content_protection_task.h"
++#include "ui/display/manager/query_content_protection_task.h"
+ 
+-#include "ui/display/manager/chromeos/display_layout_manager.h"
++#include "ui/display/manager/display_layout_manager.h"
+ #include "ui/display/types/display_snapshot.h"
+ #include "ui/display/types/native_display_delegate.h"
+ 
+diff --git a/ui/display/manager/chromeos/query_content_protection_task.h b/ui/display/manager/query_content_protection_task.h
+similarity index 89%
+rename from ui/display/manager/chromeos/query_content_protection_task.h
+rename to ui/display/manager/query_content_protection_task.h
+index cc4db60083b7..0a17906e9f9f 100644
+--- a/ui/display/manager/chromeos/query_content_protection_task.h
++++ b/ui/display/manager/query_content_protection_task.h
+@@ -2,8 +2,8 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#ifndef UI_DISPLAY_MANAGER_CHROMEOS_QUERY_CONTENT_PROTECTION_TASK_H_
+-#define UI_DISPLAY_MANAGER_CHROMEOS_QUERY_CONTENT_PROTECTION_TASK_H_
++#ifndef UI_DISPLAY_MANAGER_QUERY_CONTENT_PROTECTION_TASK_H_
++#define UI_DISPLAY_MANAGER_QUERY_CONTENT_PROTECTION_TASK_H_
+ 
+ #include <stddef.h>
+ #include <stdint.h>
+@@ -65,4 +65,4 @@ class DISPLAY_MANAGER_EXPORT QueryContentProtectionTask {
+ 
+ }  // namespace display
+ 
+-#endif  // UI_DISPLAY_MANAGER_CHROMEOS_QUERY_CONTENT_PROTECTION_TASK_H_
++#endif  // UI_DISPLAY_MANAGER_QUERY_CONTENT_PROTECTION_TASK_H_
+diff --git a/ui/display/manager/chromeos/query_content_protection_task_unittest.cc b/ui/display/manager/query_content_protection_task_unittest.cc
+similarity index 95%
+rename from ui/display/manager/chromeos/query_content_protection_task_unittest.cc
+rename to ui/display/manager/query_content_protection_task_unittest.cc
+index bff2cb8373e7..1c1b14f8b5f5 100644
+--- a/ui/display/manager/chromeos/query_content_protection_task_unittest.cc
++++ b/ui/display/manager/query_content_protection_task_unittest.cc
+@@ -2,7 +2,7 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "ui/display/manager/chromeos/query_content_protection_task.h"
++#include "ui/display/manager/query_content_protection_task.h"
+ 
+ #include <stdint.h>
+ #include <memory>
+@@ -12,11 +12,11 @@
+ #include "base/bind.h"
+ #include "base/macros.h"
+ #include "testing/gtest/include/gtest/gtest.h"
+-#include "ui/display/manager/chromeos/display_layout_manager.h"
+-#include "ui/display/manager/chromeos/test/action_logger_util.h"
+-#include "ui/display/manager/chromeos/test/test_display_layout_manager.h"
+-#include "ui/display/manager/chromeos/test/test_native_display_delegate.h"
++#include "ui/display/manager/display_layout_manager.h"
+ #include "ui/display/manager/fake_display_snapshot.h"
++#include "ui/display/manager/test/action_logger_util.h"
++#include "ui/display/manager/test/test_display_layout_manager.h"
++#include "ui/display/manager/test/test_native_display_delegate.h"
+ 
+ namespace display {
+ namespace test {
+diff --git a/ui/display/manager/chromeos/test/action_logger.cc b/ui/display/manager/test/action_logger.cc
+similarity index 90%
+rename from ui/display/manager/chromeos/test/action_logger.cc
+rename to ui/display/manager/test/action_logger.cc
+index 688d70f5fb8c..6b37deb397b5 100644
+--- a/ui/display/manager/chromeos/test/action_logger.cc
++++ b/ui/display/manager/test/action_logger.cc
+@@ -2,7 +2,7 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "ui/display/manager/chromeos/test/action_logger.h"
++#include "ui/display/manager/test/action_logger.h"
+ 
+ namespace display {
+ namespace test {
+diff --git a/ui/display/manager/chromeos/test/action_logger.h b/ui/display/manager/test/action_logger.h
+similarity index 79%
+rename from ui/display/manager/chromeos/test/action_logger.h
+rename to ui/display/manager/test/action_logger.h
+index 60e19723afbf..d62a8036c99c 100644
+--- a/ui/display/manager/chromeos/test/action_logger.h
++++ b/ui/display/manager/test/action_logger.h
+@@ -2,8 +2,8 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#ifndef UI_DISPLAY_MANAGER_CHROMEOS_TEST_ACTION_LOGGER_H_
+-#define UI_DISPLAY_MANAGER_CHROMEOS_TEST_ACTION_LOGGER_H_
++#ifndef UI_DISPLAY_MANAGER_TEST_ACTION_LOGGER_H_
++#define UI_DISPLAY_MANAGER_TEST_ACTION_LOGGER_H_
+ 
+ #include <string>
+ 
+@@ -33,4 +33,4 @@ class ActionLogger {
+ }  // namespace test
+ }  // namespace display
+ 
+-#endif  // UI_DISPLAY_MANAGER_CHROMEOS_TEST_ACTION_LOGGER_H_
++#endif  // UI_DISPLAY_MANAGER_TEST_ACTION_LOGGER_H_
+diff --git a/ui/display/manager/chromeos/test/action_logger_util.cc b/ui/display/manager/test/action_logger_util.cc
+similarity index 97%
+rename from ui/display/manager/chromeos/test/action_logger_util.cc
+rename to ui/display/manager/test/action_logger_util.cc
+index cfa9cb622bae..8f64638ef4b3 100644
+--- a/ui/display/manager/chromeos/test/action_logger_util.cc
++++ b/ui/display/manager/test/action_logger_util.cc
+@@ -2,7 +2,7 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "ui/display/manager/chromeos/test/action_logger_util.h"
++#include "ui/display/manager/test/action_logger_util.h"
+ 
+ #include <stddef.h>
+ 
+diff --git a/ui/display/manager/chromeos/test/action_logger_util.h b/ui/display/manager/test/action_logger_util.h
+similarity index 91%
+rename from ui/display/manager/chromeos/test/action_logger_util.h
+rename to ui/display/manager/test/action_logger_util.h
+index 50c174e387b0..79ca4598aab8 100644
+--- a/ui/display/manager/chromeos/test/action_logger_util.h
++++ b/ui/display/manager/test/action_logger_util.h
+@@ -2,8 +2,8 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#ifndef UI_DISPLAY_MANAGER_CHROMEOS_TEST_ACTION_LOGGER_UTIL_H_
+-#define UI_DISPLAY_MANAGER_CHROMEOS_TEST_ACTION_LOGGER_UTIL_H_
++#ifndef UI_DISPLAY_MANAGER_TEST_ACTION_LOGGER_UTIL_H_
++#define UI_DISPLAY_MANAGER_TEST_ACTION_LOGGER_UTIL_H_
+ 
+ #include <stdint.h>
+ 
+@@ -62,4 +62,4 @@ std::string JoinActions(const char* action, ...);
+ }  // namespace test
+ }  // namespace display
+ 
+-#endif  // UI_DISPLAY_MANAGER_CHROMEOS_TEST_ACTION_LOGGER_UTIL_H_
++#endif  // UI_DISPLAY_MANAGER_TEST_ACTION_LOGGER_UTIL_H_
+diff --git a/ui/display/manager/chromeos/test/test_display_layout_manager.cc b/ui/display/manager/test/test_display_layout_manager.cc
+similarity index 96%
+rename from ui/display/manager/chromeos/test/test_display_layout_manager.cc
+rename to ui/display/manager/test/test_display_layout_manager.cc
+index d5c6319b8ab1..73ca5f5a5e18 100644
+--- a/ui/display/manager/chromeos/test/test_display_layout_manager.cc
++++ b/ui/display/manager/test/test_display_layout_manager.cc
+@@ -2,7 +2,7 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "ui/display/manager/chromeos/test/test_display_layout_manager.h"
++#include "ui/display/manager/test/test_display_layout_manager.h"
+ 
+ #include <utility>
+ 
+diff --git a/ui/display/manager/chromeos/test/test_display_layout_manager.h b/ui/display/manager/test/test_display_layout_manager.h
+similarity index 80%
+rename from ui/display/manager/chromeos/test/test_display_layout_manager.h
+rename to ui/display/manager/test/test_display_layout_manager.h
+index e3295c141584..824c097a70ce 100644
+--- a/ui/display/manager/chromeos/test/test_display_layout_manager.h
++++ b/ui/display/manager/test/test_display_layout_manager.h
+@@ -2,15 +2,15 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#ifndef UI_DISPLAY_MANAGER_CHROMEOS_TEST_TEST_DISPLAY_LAYOUT_MANAGER_H_
+-#define UI_DISPLAY_MANAGER_CHROMEOS_TEST_TEST_DISPLAY_LAYOUT_MANAGER_H_
++#ifndef UI_DISPLAY_MANAGER_TEST_TEST_DISPLAY_LAYOUT_MANAGER_H_
++#define UI_DISPLAY_MANAGER_TEST_TEST_DISPLAY_LAYOUT_MANAGER_H_
+ 
+ #include <memory>
+ #include <vector>
+ 
+ #include "base/macros.h"
+-#include "ui/display/manager/chromeos/display_configurator.h"
+-#include "ui/display/manager/chromeos/display_layout_manager.h"
++#include "ui/display/manager/display_configurator.h"
++#include "ui/display/manager/display_layout_manager.h"
+ 
+ namespace display {
+ namespace test {
+@@ -46,4 +46,4 @@ class TestDisplayLayoutManager : public DisplayLayoutManager {
+ }  // namespace test
+ }  // namespace display
+ 
+-#endif  // UI_DISPLAY_MANAGER_CHROMEOS_TEST_TEST_DISPLAY_LAYOUT_MANAGER_H_
++#endif  // UI_DISPLAY_MANAGER_TEST_TEST_DISPLAY_LAYOUT_MANAGER_H_
+diff --git a/ui/display/manager/chromeos/test/test_native_display_delegate.cc b/ui/display/manager/test/test_native_display_delegate.cc
+similarity index 96%
+rename from ui/display/manager/chromeos/test/test_native_display_delegate.cc
+rename to ui/display/manager/test/test_native_display_delegate.cc
+index eb63b97e5204..406269226889 100644
+--- a/ui/display/manager/chromeos/test/test_native_display_delegate.cc
++++ b/ui/display/manager/test/test_native_display_delegate.cc
+@@ -2,13 +2,13 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "ui/display/manager/chromeos/test/test_native_display_delegate.h"
++#include "ui/display/manager/test/test_native_display_delegate.h"
+ 
+ #include "base/bind.h"
+ #include "base/location.h"
+ #include "base/single_thread_task_runner.h"
+ #include "base/threading/thread_task_runner_handle.h"
+-#include "ui/display/manager/chromeos/test/action_logger.h"
++#include "ui/display/manager/test/action_logger.h"
+ #include "ui/display/types/display_mode.h"
+ #include "ui/display/types/native_display_observer.h"
+ 
+diff --git a/ui/display/manager/chromeos/test/test_native_display_delegate.h b/ui/display/manager/test/test_native_display_delegate.h
+similarity index 91%
+rename from ui/display/manager/chromeos/test/test_native_display_delegate.h
+rename to ui/display/manager/test/test_native_display_delegate.h
+index 005c8f915311..f6d923e279db 100644
+--- a/ui/display/manager/chromeos/test/test_native_display_delegate.h
++++ b/ui/display/manager/test/test_native_display_delegate.h
+@@ -2,8 +2,8 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#ifndef UI_DISPLAY_MANAGER_CHROMEOS_TEST_TEST_NATIVE_DISPLAY_DELEGATE_H_
+-#define UI_DISPLAY_MANAGER_CHROMEOS_TEST_TEST_NATIVE_DISPLAY_DELEGATE_H_
++#ifndef UI_DISPLAY_MANAGER_TEST_TEST_NATIVE_DISPLAY_DELEGATE_H_
++#define UI_DISPLAY_MANAGER_TEST_TEST_NATIVE_DISPLAY_DELEGATE_H_
+ 
+ #include <stdint.h>
+ 
+@@ -11,8 +11,8 @@
+ 
+ #include "base/macros.h"
+ #include "base/observer_list.h"
+-#include "ui/display/manager/chromeos/test/action_logger.h"
+-#include "ui/display/manager/chromeos/test/action_logger_util.h"
++#include "ui/display/manager/test/action_logger.h"
++#include "ui/display/manager/test/action_logger_util.h"
+ #include "ui/display/types/native_display_delegate.h"
+ 
+ namespace display {
+@@ -109,4 +109,4 @@ class TestNativeDisplayDelegate : public NativeDisplayDelegate {
+ }  // namespace test
+ }  // namespace display
+ 
+-#endif  // UI_DISPLAY_MANAGER_CHROMEOS_TEST_TEST_NATIVE_DISPLAY_DELEGATE_H_
++#endif  // UI_DISPLAY_MANAGER_TEST_TEST_NATIVE_DISPLAY_DELEGATE_H_
+diff --git a/ui/display/manager/chromeos/test/touch_device_manager_test_api.cc b/ui/display/manager/test/touch_device_manager_test_api.cc
+similarity index 95%
+rename from ui/display/manager/chromeos/test/touch_device_manager_test_api.cc
+rename to ui/display/manager/test/touch_device_manager_test_api.cc
+index 6b6c1e8b834e..17ad0229c389 100644
+--- a/ui/display/manager/chromeos/test/touch_device_manager_test_api.cc
++++ b/ui/display/manager/test/touch_device_manager_test_api.cc
+@@ -2,7 +2,7 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "ui/display/manager/chromeos/test/touch_device_manager_test_api.h"
++#include "ui/display/manager/test/touch_device_manager_test_api.h"
+ 
+ #include "ui/display/manager/managed_display_info.h"
+ #include "ui/events/devices/touchscreen_device.h"
+diff --git a/ui/display/manager/chromeos/test/touch_device_manager_test_api.h b/ui/display/manager/test/touch_device_manager_test_api.h
+similarity index 84%
+rename from ui/display/manager/chromeos/test/touch_device_manager_test_api.h
+rename to ui/display/manager/test/touch_device_manager_test_api.h
+index 7d734aec7172..96866341b21b 100644
+--- a/ui/display/manager/chromeos/test/touch_device_manager_test_api.h
++++ b/ui/display/manager/test/touch_device_manager_test_api.h
+@@ -2,12 +2,12 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#ifndef UI_DISPLAY_MANAGER_CHROMEOS_TEST_TOUCH_DEVICE_MANAGER_TEST_API_H_
+-#define UI_DISPLAY_MANAGER_CHROMEOS_TEST_TOUCH_DEVICE_MANAGER_TEST_API_H_
++#ifndef UI_DISPLAY_MANAGER_TEST_TOUCH_DEVICE_MANAGER_TEST_API_H_
++#define UI_DISPLAY_MANAGER_TEST_TOUCH_DEVICE_MANAGER_TEST_API_H_
+ 
+ #include "base/macros.h"
+-#include "ui/display/manager/chromeos/touch_device_manager.h"
+ #include "ui/display/manager/display_manager_export.h"
++#include "ui/display/manager/touch_device_manager.h"
+ 
+ namespace ui {
+ struct TouchscreenDevice;
+@@ -53,4 +53,4 @@ class DISPLAY_MANAGER_EXPORT TouchDeviceManagerTestApi {
+ 
+ }  // namespace test
+ }  // namespace display
+-#endif  // UI_DISPLAY_MANAGER_CHROMEOS_TEST_TOUCH_DEVICE_MANAGER_TEST_API_H_
++#endif  // UI_DISPLAY_MANAGER_TEST_TOUCH_DEVICE_MANAGER_TEST_API_H_
+diff --git a/ui/display/manager/chromeos/test/touch_transform_controller_test_api.cc b/ui/display/manager/test/touch_transform_controller_test_api.cc
+similarity index 85%
+rename from ui/display/manager/chromeos/test/touch_transform_controller_test_api.cc
+rename to ui/display/manager/test/touch_transform_controller_test_api.cc
+index f0afcb40656a..463f2e1cc516 100644
+--- a/ui/display/manager/chromeos/test/touch_transform_controller_test_api.cc
++++ b/ui/display/manager/test/touch_transform_controller_test_api.cc
+@@ -2,7 +2,7 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "ui/display/manager/chromeos/test/touch_transform_controller_test_api.h"
++#include "ui/display/manager/test/touch_transform_controller_test_api.h"
+ 
+ namespace display {
+ namespace test {
+diff --git a/ui/display/manager/chromeos/test/touch_transform_controller_test_api.h b/ui/display/manager/test/touch_transform_controller_test_api.h
+similarity index 69%
+rename from ui/display/manager/chromeos/test/touch_transform_controller_test_api.h
+rename to ui/display/manager/test/touch_transform_controller_test_api.h
+index 60c002c87cc0..7e49aa2f0500 100644
+--- a/ui/display/manager/chromeos/test/touch_transform_controller_test_api.h
++++ b/ui/display/manager/test/touch_transform_controller_test_api.h
+@@ -2,13 +2,13 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#ifndef UI_DISPLAY_MANAGER_CHROMEOS_TEST_TOUCH_TRANSFORM_CONTROLLER_TEST_API_H_
+-#define UI_DISPLAY_MANAGER_CHROMEOS_TEST_TOUCH_TRANSFORM_CONTROLLER_TEST_API_H_
++#ifndef UI_DISPLAY_MANAGER_TEST_TOUCH_TRANSFORM_CONTROLLER_TEST_API_H_
++#define UI_DISPLAY_MANAGER_TEST_TOUCH_TRANSFORM_CONTROLLER_TEST_API_H_
+ 
+ #include <memory>
+ 
+ #include "base/macros.h"
+-#include "ui/display/manager/chromeos/touch_transform_controller.h"
++#include "ui/display/manager/touch_transform_controller.h"
+ 
+ namespace display {
+ namespace test {
+@@ -32,4 +32,4 @@ class TouchTransformControllerTestApi {
+ }  // namespace test
+ }  // namespace display
+ 
+-#endif  // UI_DISPLAY_MANAGER_CHROMEOS_TEST_TOUCH_TRANSFORM_CONTROLLER_TEST_API_H_
++#endif  // UI_DISPLAY_MANAGER_TEST_TOUCH_TRANSFORM_CONTROLLER_TEST_API_H_
+diff --git a/ui/display/manager/chromeos/touch_device_manager.cc b/ui/display/manager/touch_device_manager.cc
+similarity index 99%
+rename from ui/display/manager/chromeos/touch_device_manager.cc
+rename to ui/display/manager/touch_device_manager.cc
+index 656fe1db54e4..b71cfa51475a 100644
+--- a/ui/display/manager/chromeos/touch_device_manager.cc
++++ b/ui/display/manager/touch_device_manager.cc
+@@ -2,7 +2,7 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "ui/display/manager/chromeos/touch_device_manager.h"
++#include "ui/display/manager/touch_device_manager.h"
+ 
+ #include <algorithm>
+ #include <set>
+diff --git a/ui/display/manager/chromeos/touch_device_manager.h b/ui/display/manager/touch_device_manager.h
+similarity index 98%
+rename from ui/display/manager/chromeos/touch_device_manager.h
+rename to ui/display/manager/touch_device_manager.h
+index e64cd187a616..53fd442602e0 100644
+--- a/ui/display/manager/chromeos/touch_device_manager.h
++++ b/ui/display/manager/touch_device_manager.h
+@@ -2,8 +2,8 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#ifndef UI_DISPLAY_MANAGER_CHROMEOS_TOUCH_DEVICE_MANAGER_H_
+-#define UI_DISPLAY_MANAGER_CHROMEOS_TOUCH_DEVICE_MANAGER_H_
++#ifndef UI_DISPLAY_MANAGER_TOUCH_DEVICE_MANAGER_H_
++#define UI_DISPLAY_MANAGER_TOUCH_DEVICE_MANAGER_H_
+ 
+ #include <array>
+ #include <map>
+@@ -266,4 +266,4 @@ DISPLAY_MANAGER_EXPORT bool IsInternalTouchscreenDevice(
+     const TouchDeviceIdentifier& identifier);
+ }  // namespace display
+ 
+-#endif  // UI_DISPLAY_MANAGER_CHROMEOS_TOUCH_DEVICE_MANAGER_H_
++#endif  // UI_DISPLAY_MANAGER_TOUCH_DEVICE_MANAGER_H_
+diff --git a/ui/display/manager/chromeos/touch_device_manager_unittest.cc b/ui/display/manager/touch_device_manager_unittest.cc
+similarity index 99%
+rename from ui/display/manager/chromeos/touch_device_manager_unittest.cc
+rename to ui/display/manager/touch_device_manager_unittest.cc
+index fc3d847487ba..d5b89ee84370 100644
+--- a/ui/display/manager/chromeos/touch_device_manager_unittest.cc
++++ b/ui/display/manager/touch_device_manager_unittest.cc
+@@ -2,7 +2,7 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "ui/display/manager/chromeos/touch_device_manager.h"
++#include "ui/display/manager/touch_device_manager.h"
+ 
+ #include <memory>
+ #include <string>
+@@ -11,9 +11,9 @@
+ #include "base/strings/string_number_conversions.h"
+ #include "base/time/time.h"
+ #include "testing/gtest/include/gtest/gtest.h"
+-#include "ui/display/manager/chromeos/test/touch_device_manager_test_api.h"
+ #include "ui/display/manager/display_manager.h"
+ #include "ui/display/manager/managed_display_info.h"
++#include "ui/display/manager/test/touch_device_manager_test_api.h"
+ #include "ui/display/screen_base.h"
+ #include "ui/display/test/display_manager_test_api.h"
+ #include "ui/events/devices/input_device.h"
+diff --git a/ui/display/manager/chromeos/touch_transform_controller.cc b/ui/display/manager/touch_transform_controller.cc
+similarity index 98%
+rename from ui/display/manager/chromeos/touch_transform_controller.cc
+rename to ui/display/manager/touch_transform_controller.cc
+index 33831add111d..4b7602d035d7 100644
+--- a/ui/display/manager/chromeos/touch_transform_controller.cc
++++ b/ui/display/manager/touch_transform_controller.cc
+@@ -2,18 +2,18 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "ui/display/manager/chromeos/touch_transform_controller.h"
++#include "ui/display/manager/touch_transform_controller.h"
+ 
+ #include <utility>
+ #include <vector>
+ 
+ #include "third_party/skia/include/core/SkMatrix44.h"
+ #include "ui/display/display_layout.h"
+-#include "ui/display/manager/chromeos/display_configurator.h"
+-#include "ui/display/manager/chromeos/touch_device_manager.h"
+-#include "ui/display/manager/chromeos/touch_transform_setter.h"
++#include "ui/display/manager/display_configurator.h"
+ #include "ui/display/manager/display_manager.h"
+ #include "ui/display/manager/managed_display_info.h"
++#include "ui/display/manager/touch_device_manager.h"
++#include "ui/display/manager/touch_transform_setter.h"
+ #include "ui/display/screen.h"
+ #include "ui/display/types/display_constants.h"
+ #include "ui/display/types/display_snapshot.h"
+diff --git a/ui/display/manager/chromeos/touch_transform_controller.h b/ui/display/manager/touch_transform_controller.h
+similarity index 95%
+rename from ui/display/manager/chromeos/touch_transform_controller.h
+rename to ui/display/manager/touch_transform_controller.h
+index 44b30859c708..55de79d65dfb 100644
+--- a/ui/display/manager/chromeos/touch_transform_controller.h
++++ b/ui/display/manager/touch_transform_controller.h
+@@ -2,8 +2,8 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#ifndef UI_DISPLAY_MANAGER_CHROMEOS_TOUCH_TRANSFORM_CONTROLLER_H_
+-#define UI_DISPLAY_MANAGER_CHROMEOS_TOUCH_TRANSFORM_CONTROLLER_H_
++#ifndef UI_DISPLAY_MANAGER_TOUCH_TRANSFORM_CONTROLLER_H_
++#define UI_DISPLAY_MANAGER_TOUCH_TRANSFORM_CONTROLLER_H_
+ 
+ #include <map>
+ #include <memory>
+@@ -117,4 +117,4 @@ class DISPLAY_MANAGER_EXPORT TouchTransformController {
+ 
+ }  // namespace display
+ 
+-#endif  // UI_DISPLAY_MANAGER_CHROMEOS_TOUCH_TRANSFORM_CONTROLLER_H_
++#endif  // UI_DISPLAY_MANAGER_TOUCH_TRANSFORM_CONTROLLER_H_
+diff --git a/ui/display/manager/chromeos/touch_transform_controller_unittest.cc b/ui/display/manager/touch_transform_controller_unittest.cc
+similarity index 99%
+rename from ui/display/manager/chromeos/touch_transform_controller_unittest.cc
+rename to ui/display/manager/touch_transform_controller_unittest.cc
+index 35b769b93f43..131bb543942a 100644
+--- a/ui/display/manager/chromeos/touch_transform_controller_unittest.cc
++++ b/ui/display/manager/touch_transform_controller_unittest.cc
+@@ -2,7 +2,7 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "ui/display/manager/chromeos/touch_transform_controller.h"
++#include "ui/display/manager/touch_transform_controller.h"
+ 
+ #include <memory>
+ #include <string>
+@@ -10,10 +10,10 @@
+ 
+ #include "base/strings/string_number_conversions.h"
+ #include "testing/gtest/include/gtest/gtest.h"
+-#include "ui/display/manager/chromeos/default_touch_transform_setter.h"
+-#include "ui/display/manager/chromeos/test/touch_device_manager_test_api.h"
+-#include "ui/display/manager/chromeos/touch_device_manager.h"
++#include "ui/display/manager/default_touch_transform_setter.h"
+ #include "ui/display/manager/display_manager.h"
++#include "ui/display/manager/test/touch_device_manager_test_api.h"
++#include "ui/display/manager/touch_device_manager.h"
+ #include "ui/display/screen_base.h"
+ #include "ui/events/devices/device_data_manager.h"
+ 
+diff --git a/ui/display/manager/chromeos/touch_transform_setter.h b/ui/display/manager/touch_transform_setter.h
+similarity index 79%
+rename from ui/display/manager/chromeos/touch_transform_setter.h
+rename to ui/display/manager/touch_transform_setter.h
+index efbb8e12a6fa..232d622d0526 100644
+--- a/ui/display/manager/chromeos/touch_transform_setter.h
++++ b/ui/display/manager/touch_transform_setter.h
+@@ -2,8 +2,8 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#ifndef UI_DISPLAY_MANAGER_CHROMEOS_TOUCH_TRANSFORM_SETTER_H_
+-#define UI_DISPLAY_MANAGER_CHROMEOS_TOUCH_TRANSFORM_SETTER_H_
++#ifndef UI_DISPLAY_MANAGER_TOUCH_TRANSFORM_SETTER_H_
++#define UI_DISPLAY_MANAGER_TOUCH_TRANSFORM_SETTER_H_
+ 
+ #include <vector>
+ 
+@@ -29,4 +29,4 @@ class DISPLAY_MANAGER_EXPORT TouchTransformSetter {
+ 
+ }  // namespace display
+ 
+-#endif  // UI_DISPLAY_MANAGER_CHROMEOS_TOUCH_TRANSFORM_SETTER_H_
++#endif  // UI_DISPLAY_MANAGER_TOUCH_TRANSFORM_SETTER_H_
+diff --git a/ui/display/manager/chromeos/update_display_configuration_task.cc b/ui/display/manager/update_display_configuration_task.cc
+similarity index 96%
+rename from ui/display/manager/chromeos/update_display_configuration_task.cc
+rename to ui/display/manager/update_display_configuration_task.cc
+index 70e19c349200..f70090a87508 100644
+--- a/ui/display/manager/chromeos/update_display_configuration_task.cc
++++ b/ui/display/manager/update_display_configuration_task.cc
+@@ -2,11 +2,11 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "ui/display/manager/chromeos/update_display_configuration_task.h"
++#include "ui/display/manager/update_display_configuration_task.h"
+ 
+-#include "ui/display/manager/chromeos/configure_displays_task.h"
+-#include "ui/display/manager/chromeos/display_layout_manager.h"
+-#include "ui/display/manager/chromeos/display_util.h"
++#include "ui/display/manager/configure_displays_task.h"
++#include "ui/display/manager/display_layout_manager.h"
++#include "ui/display/manager/display_util.h"
+ #include "ui/display/types/display_snapshot.h"
+ #include "ui/display/types/native_display_delegate.h"
+ 
+diff --git a/ui/display/manager/chromeos/update_display_configuration_task.h b/ui/display/manager/update_display_configuration_task.h
+similarity index 90%
+rename from ui/display/manager/chromeos/update_display_configuration_task.h
+rename to ui/display/manager/update_display_configuration_task.h
+index 13c0df361476..69d8b712e9cc 100644
+--- a/ui/display/manager/chromeos/update_display_configuration_task.h
++++ b/ui/display/manager/update_display_configuration_task.h
+@@ -2,8 +2,8 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#ifndef UI_DISPLAY_MANAGER_CHROMEOS_UPDATE_DISPLAY_CONFIGURATION_TASK_H_
+-#define UI_DISPLAY_MANAGER_CHROMEOS_UPDATE_DISPLAY_CONFIGURATION_TASK_H_
++#ifndef UI_DISPLAY_MANAGER_UPDATE_DISPLAY_CONFIGURATION_TASK_H_
++#define UI_DISPLAY_MANAGER_UPDATE_DISPLAY_CONFIGURATION_TASK_H_
+ 
+ #include <stdint.h>
+ 
+@@ -12,8 +12,8 @@
+ 
+ #include "base/macros.h"
+ #include "base/memory/weak_ptr.h"
+-#include "ui/display/manager/chromeos/configure_displays_task.h"
+-#include "ui/display/manager/chromeos/display_configurator.h"
++#include "ui/display/manager/configure_displays_task.h"
++#include "ui/display/manager/display_configurator.h"
+ #include "ui/display/types/native_display_observer.h"
+ 
+ namespace display {
+@@ -107,4 +107,4 @@ class DISPLAY_MANAGER_EXPORT UpdateDisplayConfigurationTask
+ 
+ }  // namespace display
+ 
+-#endif  // UI_DISPLAY_MANAGER_CHROMEOS_UPDATE_DISPLAY_CONFIGURATION_TASK_H_
++#endif  // UI_DISPLAY_MANAGER_UPDATE_DISPLAY_CONFIGURATION_TASK_H_
+diff --git a/ui/display/manager/chromeos/update_display_configuration_task_unittest.cc b/ui/display/manager/update_display_configuration_task_unittest.cc
+similarity index 98%
+rename from ui/display/manager/chromeos/update_display_configuration_task_unittest.cc
+rename to ui/display/manager/update_display_configuration_task_unittest.cc
+index 526d70e4e8de..ea4539a61794 100644
+--- a/ui/display/manager/chromeos/update_display_configuration_task_unittest.cc
++++ b/ui/display/manager/update_display_configuration_task_unittest.cc
+@@ -2,7 +2,7 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "ui/display/manager/chromeos/update_display_configuration_task.h"
++#include "ui/display/manager/update_display_configuration_task.h"
+ 
+ #include <stddef.h>
+ 
+@@ -13,10 +13,10 @@
+ #include "base/message_loop/message_loop.h"
+ #include "base/run_loop.h"
+ #include "testing/gtest/include/gtest/gtest.h"
+-#include "ui/display/manager/chromeos/display_layout_manager.h"
+-#include "ui/display/manager/chromeos/test/action_logger_util.h"
+-#include "ui/display/manager/chromeos/test/test_native_display_delegate.h"
++#include "ui/display/manager/display_layout_manager.h"
+ #include "ui/display/manager/fake_display_snapshot.h"
++#include "ui/display/manager/test/action_logger_util.h"
++#include "ui/display/manager/test/test_native_display_delegate.h"
+ 
+ namespace display {
+ namespace test {
+-- 
+2.17.0
+

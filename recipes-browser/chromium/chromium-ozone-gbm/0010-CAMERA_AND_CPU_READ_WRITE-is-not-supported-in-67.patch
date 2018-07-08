@@ -1,0 +1,39 @@
+From 25a100e043df9be46f42f6fc508258774b9db093 Mon Sep 17 00:00:00 2001
+From: Joone Hur <joone.hur@intel.com>
+Date: Fri, 6 Jul 2018 00:29:20 +0000
+Subject: [PATCH 10/11] CAMERA_AND_CPU_READ_WRITE is not supported in 67
+
+---
+ ui/gfx/linux/client_native_pixmap_factory_dmabuf.cc | 9 ---------
+ 1 file changed, 9 deletions(-)
+
+diff --git a/ui/gfx/linux/client_native_pixmap_factory_dmabuf.cc b/ui/gfx/linux/client_native_pixmap_factory_dmabuf.cc
+index 449cb123ee04..ce8ff8f9e162 100644
+--- a/ui/gfx/linux/client_native_pixmap_factory_dmabuf.cc
++++ b/ui/gfx/linux/client_native_pixmap_factory_dmabuf.cc
+@@ -108,14 +108,6 @@ class ClientNativePixmapFactoryDmabuf : public ClientNativePixmapFactory {
+         return format == gfx::BufferFormat::YUV_420_BIPLANAR;
+ #else
+         return false;
+-#endif
+-      }
+-      case gfx::BufferUsage::CAMERA_AND_CPU_READ_WRITE: {
+-#if defined(DISPLAY_CONFIGURATION)
+-        // R_8 is used as the underlying pixel format for BLOB buffers.
+-        return format == gfx::BufferFormat::R_8;
+-#else
+-        return false;
+ #endif
+       }
+     }
+@@ -132,7 +124,6 @@ class ClientNativePixmapFactoryDmabuf : public ClientNativePixmapFactory {
+       case gfx::BufferUsage::GPU_READ_CPU_READ_WRITE:
+       case gfx::BufferUsage::GPU_READ_CPU_READ_WRITE_PERSISTENT:
+       case gfx::BufferUsage::SCANOUT_CAMERA_READ_WRITE:
+-      case gfx::BufferUsage::CAMERA_AND_CPU_READ_WRITE:
+ #if defined(DISPLAY_CONFIGURATION)
+         return ClientNativePixmapDmaBuf::ImportFromDmabuf(handle, size);
+ #else
+-- 
+2.17.0
+

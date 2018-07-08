@@ -1,0 +1,34 @@
+From 4848e19047b4fff5a853828a09da3f8949824bde Mon Sep 17 00:00:00 2001
+From: Joone Hur <joone.hur@intel.com>
+Date: Mon, 5 Feb 2018 22:45:34 +0000
+Subject: [PATCH 02/11] Use base::Unretained instead of weak ptr in
+ AfterSandboxEntry().
+
+This CL fixes the following problem:
+FATAL:weak_ptr.cc(26)] Check failed: sequence_checker_.
+    CalledOnValidSequence(). WeakPtrs must be checked on the same sequenced thread.
+
+Upstream CL:
+https://chromium-review.googlesource.com/c/chromium/src/+/902938
+
+TEST=mus_demo
+---
+ ui/ozone/platform/drm/ozone_platform_gbm.cc | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/ui/ozone/platform/drm/ozone_platform_gbm.cc b/ui/ozone/platform/drm/ozone_platform_gbm.cc
+index a6e1286c2a72..49b73c1a40a8 100644
+--- a/ui/ozone/platform/drm/ozone_platform_gbm.cc
++++ b/ui/ozone/platform/drm/ozone_platform_gbm.cc
+@@ -291,7 +291,7 @@ class OzonePlatformGbm : public OzonePlatform {
+                                 "invalid startup order.\n";
+     // Defer the actual startup of the DRM thread to here.
+     auto safe_binding_resquest_drainer = CreateSafeOnceCallback(base::BindOnce(
+-        &OzonePlatformGbm::DrainBindingRequests, weak_factory_.GetWeakPtr()));
++        &OzonePlatformGbm::DrainBindingRequests, base::Unretained(this)));
+ 
+     drm_thread_proxy_->StartDrmThread(std::move(safe_binding_resquest_drainer));
+   }
+-- 
+2.17.0
+

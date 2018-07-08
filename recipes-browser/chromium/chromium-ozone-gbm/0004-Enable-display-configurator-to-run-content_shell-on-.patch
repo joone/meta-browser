@@ -1,0 +1,192 @@
+From 53fa8bd8c0cd3fffd5eaf7e7ebb61e2fa11a7ca5 Mon Sep 17 00:00:00 2001
+From: Joone Hur <joone.hur@intel.com>
+Date: Tue, 26 Jun 2018 01:14:16 +0000
+Subject: [PATCH 04/11] Enable display configurator to run content_shell on
+ ozone-gbm
+
+---
+ content/shell/browser/shell.cc      |  9 +++--
+ content/shell/browser/shell.h       | 30 +++++++++++++++-
+ content/shell/browser/shell_aura.cc | 55 +++++++++++++++++++++++++++++
+ 3 files changed, 91 insertions(+), 3 deletions(-)
+
+diff --git a/content/shell/browser/shell.cc b/content/shell/browser/shell.cc
+index 8df5f790343b..81edc9d0e363 100644
+--- a/content/shell/browser/shell.cc
++++ b/content/shell/browser/shell.cc
+@@ -44,6 +44,8 @@
+ #include "content/shell/common/shell_switches.h"
+ #include "media/media_buildflags.h"
+ #include "third_party/blink/public/web/web_presentation_receiver_flags.h"
++#include "ui/display/types/native_display_delegate.h"
++#include "ui/ozone/public/ozone_platform.h"
+ 
+ namespace content {
+ 
+@@ -83,7 +85,11 @@ Shell::Shell(WebContents* web_contents)
+       url_edit_view_(NULL),
+ #endif
+       headless_(false),
+-      hide_toolbar_(false) {
++      hide_toolbar_(false), delegate_(
++         ui::OzonePlatform::GetInstance()->CreateNativeDisplayDelegate()) {
++  delegate_->AddObserver(this);
++  delegate_->Initialize();
++
+   web_contents_->SetDelegate(this);
+ 
+   if (switches::IsRunLayoutTestSwitchPresent()) {
+@@ -134,7 +140,6 @@ Shell::~Shell() {
+ Shell* Shell::CreateShell(WebContents* web_contents,
+                           const gfx::Size& initial_size) {
+   Shell* shell = new Shell(web_contents);
+-  shell->PlatformCreateWindow(initial_size.width(), initial_size.height());
+ 
+   shell->PlatformSetContents();
+ 
+diff --git a/content/shell/browser/shell.h b/content/shell/browser/shell.h
+index 65af9a78c191..abca5b3e4fb2 100644
+--- a/content/shell/browser/shell.h
++++ b/content/shell/browser/shell.h
+@@ -16,9 +16,17 @@
+ #include "content/public/browser/web_contents_delegate.h"
+ #include "content/public/browser/web_contents_observer.h"
+ #include "ipc/ipc_channel.h"
++#include "ui/display/types/native_display_observer.h"
+ #include "ui/gfx/geometry/size.h"
+ #include "ui/gfx/native_widget_types.h"
+ 
++namespace display {
++
++class DisplaySnapshot;
++class NativeDisplayDelegate;
++
++}  // namespace display
++
+ #if defined(OS_ANDROID)
+ #include "base/android/scoped_java_ref.h"
+ #elif defined(USE_AURA)
+@@ -57,7 +65,8 @@ class WebContents;
+ // This represents one window of the Content Shell, i.e. all the UI including
+ // buttons and url bar, as well as the web content area.
+ class Shell : public WebContentsDelegate,
+-              public WebContentsObserver {
++              public WebContentsObserver,
++              public display::NativeDisplayObserver  {
+  public:
+   ~Shell() override;
+ 
+@@ -174,6 +183,12 @@ class Shell : public WebContentsDelegate,
+ 
+   static gfx::Size GetShellDefaultSize();
+ 
++  void OnDisplaysAquired(
++      const std::vector<display::DisplaySnapshot*>& displays);
++  void OnDisplayConfigured(const gfx::Rect& bounds, bool success);
++  void OnConfigurationChanged() override;
++  void OnDisplaySnapshotsInvalidated() override;
++
+  private:
+   enum UIControl {
+     BACK_BUTTON,
+@@ -283,6 +298,19 @@ class Shell : public WebContentsDelegate,
+   // True if the destructur of Shell should post a quit closure on the current
+   // message loop if the destructed Shell object was the last one.
+   static bool quit_message_loop_;
++
++  std::unique_ptr<display::NativeDisplayDelegate> delegate_;
++
++  // Flags used to keep track of the current state of display configuration.
++  //
++  // True if configuring the displays. In this case a new display configuration
++  // isn't started.
++  bool is_configuring_ = false;
++
++  // If |is_configuring_| is true and another display configuration event
++  // happens, the event is deferred. This is set to true and a display
++  // configuration will be scheduled after the current one finishes.
++  bool should_configure_ = false;
+ };
+ 
+ }  // namespace content
+diff --git a/content/shell/browser/shell_aura.cc b/content/shell/browser/shell_aura.cc
+index 4f941d8a7e4f..082e1cd3cd3e 100644
+--- a/content/shell/browser/shell_aura.cc
++++ b/content/shell/browser/shell_aura.cc
+@@ -10,6 +10,8 @@
+ #include "ui/aura/test/test_screen.h"
+ #include "ui/aura/window.h"
+ #include "ui/aura/window_event_dispatcher.h"
++#include "ui/display/types/native_display_delegate.h"
++#include "ui/display/types/display_snapshot.h"
+ 
+ namespace content {
+ 
+@@ -43,6 +45,8 @@ void Shell::PlatformCreateWindow(int width, int height) {
+   if (!headless_)
+     platform_->ShowWindow();
+   platform_->ResizeWindow(gfx::Size(width, height));
++  aura::Window* content = web_contents_->GetNativeView();
++  content->SetBounds(gfx::Rect(0 , 0, width, height));
+ }
+ 
+ void Shell::PlatformSetContents() {
+@@ -65,4 +69,55 @@ void Shell::Close() {
+ void Shell::PlatformSetTitle(const base::string16& title) {
+ }
+ 
++void  Shell::OnConfigurationChanged() {
++  if (is_configuring_) {
++    should_configure_ = true;
++    return;
++  }
++
++  is_configuring_ = true;
++  delegate_->GetDisplays(base::BindRepeating(&Shell::OnDisplaysAquired,
++                                             base::Unretained(this)));
++}
++
++void  Shell::OnDisplaysAquired(
++    const std::vector<display::DisplaySnapshot*>& displays) {
++  gfx::Point origin;
++
++  for (auto* display : displays) {
++    if (!display->native_mode()) {
++      LOG(ERROR) << "Display " << display->display_id()
++                 << " doesn't have a native mode";
++      continue;
++    }
++
++    delegate_->Configure(
++        *display, display->native_mode(), origin,
++        base::BindRepeating(&Shell::OnDisplayConfigured,
++                            base::Unretained(this),
++                            gfx::Rect(origin, display->native_mode()->size())));
++    origin.Offset(display->native_mode()->size().width(), 0);
++  }
++
++  is_configuring_ = false;
++
++  if (should_configure_) {
++    should_configure_ = false;
++    base::ThreadTaskRunnerHandle::Get()->PostTask(
++        FROM_HERE, base::BindRepeating(&Shell::OnConfigurationChanged,
++                                       base::Unretained(this)));
++  }
++}
++
++void  Shell::OnDisplayConfigured(const gfx::Rect& bounds, bool success) {
++  if (success) {
++    VLOG(1) << "Configure display at " << bounds.ToString();
++    PlatformCreateWindow(bounds.width(), bounds.height());
++  } else {
++    LOG(ERROR) << "Failed to configure display at " << bounds.ToString();
++  }
++}
++
++void  Shell::OnDisplaySnapshotsInvalidated() {}
++
+ }  // namespace content
+-- 
+2.17.0
+

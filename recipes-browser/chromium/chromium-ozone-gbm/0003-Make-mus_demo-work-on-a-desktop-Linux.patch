@@ -1,0 +1,328 @@
+From 2a9bc5c8b17510b847408f76ecea5745152f74b0 Mon Sep 17 00:00:00 2001
+From: Joone Hur <joone.hur@intel.com>
+Date: Tue, 9 Jan 2018 00:03:05 +0000
+Subject: [PATCH 03/11] Make mus_demo work on a desktop Linux
+
+---
+ services/ui/demo/BUILD.gn                          |  5 +++--
+ services/ui/display/BUILD.gn                       | 14 ++++++++++++--
+ services/ui/display/screen_manager_forwarding.cc   |  4 ++++
+ .../ui/display/screen_manager_ozone_internal.cc    |  6 ++++++
+ ui/aura/BUILD.gn                                   |  5 +++++
+ ui/display/manager/BUILD.gn                        |  4 ++++
+ ui/display/manager/display_change_observer.cc      |  8 ++++++--
+ ui/display/manager/display_configurator.cc         |  6 ++++++
+ ui/display/manager/display_manager.h               |  8 ++++----
+ ui/display/manager/touch_transform_controller.cc   |  4 ++++
+ 10 files changed, 54 insertions(+), 10 deletions(-)
+
+diff --git a/services/ui/demo/BUILD.gn b/services/ui/demo/BUILD.gn
+index 0ccd44058423..1e1b2b62cf50 100644
+--- a/services/ui/demo/BUILD.gn
++++ b/services/ui/demo/BUILD.gn
+@@ -8,6 +8,7 @@ import("//services/service_manager/public/cpp/service.gni")
+ import("//services/service_manager/public/service_manifest.gni")
+ import("//services/service_manager/public/tools/test/service_test.gni")
+ import("//testing/test.gni")
++import("//ui/display/display.gni")
+ 
+ source_set("lib") {
+   sources = [
+@@ -17,7 +18,7 @@ source_set("lib") {
+     "window_tree_data.h",
+   ]
+ 
+-  if (use_ozone && !is_chromeos) {
++  if (use_ozone && !build_display_configuration) {
+     sources += [
+       "mus_demo_external.cc",
+       "mus_demo_external.h",
+@@ -49,7 +50,7 @@ source_set("lib") {
+ }
+ 
+ service("mus_demo") {
+-  if (use_ozone && !is_chromeos) {
++  if (use_ozone && !build_display_configuration) {
+     sources = [
+       "main_external.cc",
+     ]
+diff --git a/services/ui/display/BUILD.gn b/services/ui/display/BUILD.gn
+index f339c179788d..ca4a37c7184a 100644
+--- a/services/ui/display/BUILD.gn
++++ b/services/ui/display/BUILD.gn
+@@ -4,6 +4,7 @@
+ 
+ import("//build/config/ui.gni")
+ import("//testing/test.gni")
++import("//ui/display/display.gni")
+ 
+ source_set("display") {
+   sources = [
+@@ -22,7 +23,7 @@ source_set("display") {
+   ]
+ 
+   if (use_ozone) {
+-    if (is_chromeos) {
++    if (build_display_configuration) {
+       sources += [
+         "output_protection.cc",
+         "output_protection.h",
+@@ -33,7 +34,6 @@ source_set("display") {
+       ]
+ 
+       deps += [
+-        "//chromeos",
+         "//services/ui/public/interfaces/display",
+         "//ui/display/manager",
+         "//ui/display/mojo:interfaces",
+@@ -45,6 +45,16 @@ source_set("display") {
+         "screen_manager_ozone_external.h",
+       ]
+     }
++
++    if (is_chromeos) {
++      deps += [
++        "//chromeos",
++      ]
++    }
++
++    if (build_display_configuration) {
++      defines = [ "INTERNAL_WINDOW_MODE" ]
++    }
+   } else {
+     sources += [
+       "screen_manager_stub_internal.cc",
+diff --git a/services/ui/display/screen_manager_forwarding.cc b/services/ui/display/screen_manager_forwarding.cc
+index 8f8d61b11296..843dd50f12d4 100644
+--- a/services/ui/display/screen_manager_forwarding.cc
++++ b/services/ui/display/screen_manager_forwarding.cc
+@@ -7,7 +7,9 @@
+ #include <utility>
+ 
+ #include "base/bind.h"
++#if defined(OS_CHROMEOS)
+ #include "chromeos/system/devicemode.h"
++#endif
+ #include "services/service_manager/public/cpp/binder_registry.h"
+ #include "ui/display/screen_base.h"
+ #include "ui/display/types/display_constants.h"
+@@ -104,10 +106,12 @@ void ScreenManagerForwarding::Initialize(
+   native_display_delegate_->Initialize();
+ 
+   // FakeDisplayController is only applicable when not running on a CrOS device.
++#if defined(OS_CHROMEOS)
+   if (!chromeos::IsRunningAsSystemCompositor()) {
+     fake_display_controller_ =
+         native_display_delegate_->GetFakeDisplayController();
+   }
++#endif
+ 
+   // Provide the list of display snapshots initially. ForwardingDisplayDelegate
+   // will wait synchronously for this.
+diff --git a/services/ui/display/screen_manager_ozone_internal.cc b/services/ui/display/screen_manager_ozone_internal.cc
+index 2895213f1dc6..3bafb7532abc 100644
+--- a/services/ui/display/screen_manager_ozone_internal.cc
++++ b/services/ui/display/screen_manager_ozone_internal.cc
+@@ -127,12 +127,14 @@ void ScreenManagerOzoneInternal::Init(ScreenManagerDelegate* delegate) {
+         ui::OzonePlatform::GetInstance()->CreateNativeDisplayDelegate();
+   }
+ 
++#if defined(OS_CHROMEOS)
+   // The FakeDisplayController gives us a way to make the NativeDisplayDelegate
+   // pretend something display related has happened.
+   if (!chromeos::IsRunningAsSystemCompositor()) {
+     fake_display_controller_ =
+         native_display_delegate_->GetFakeDisplayController();
+   }
++#endif
+ 
+   // Configure display manager. ScreenManager acts as an observer to find out
+   // display changes and as a delegate to find out when changes start/stop.
+@@ -151,7 +153,9 @@ void ScreenManagerOzoneInternal::Init(ScreenManagerDelegate* delegate) {
+   display_configurator_.set_configure_display(true);
+   display_configurator_.AddObserver(display_change_observer_.get());
+   display_configurator_.set_state_controller(display_change_observer_.get());
++#if defined(OS_CHROMEOS)
+   display_configurator_.set_mirroring_controller(display_manager_.get());
++#endif
+ 
+   // Perform initial configuration.
+   display_configurator_.Init(std::move(native_display_delegate_), false);
+@@ -320,7 +324,9 @@ void ScreenManagerOzoneInternal::PostDisplayConfigurationChange() {
+     }
+   }
+ 
++#if defined(OS_CHROMEOS)
+   touch_transform_controller_->UpdateTouchTransforms();
++#endif
+ 
+   DVLOG(1) << "PostDisplayConfigurationChange";
+ }
+diff --git a/ui/aura/BUILD.gn b/ui/aura/BUILD.gn
+index 2f74c3a96c86..d25a6615661a 100644
+--- a/ui/aura/BUILD.gn
++++ b/ui/aura/BUILD.gn
+@@ -5,6 +5,7 @@
+ import("//build/config/jumbo.gni")
+ import("//build/config/ui.gni")
+ import("//testing/test.gni")
++import("//ui/display/display.gni")
+ 
+ jumbo_component("aura") {
+   public = [
+@@ -321,6 +322,10 @@ jumbo_static_library("test_support") {
+   if (use_ozone) {
+     sources += [ "test/ui_controls_factory_ozone.cc" ]
+   }
++
++  if (build_display_configuration) {
++    defines = [ "INTERNAL_WINDOW_MODE" ]
++  }
+ }
+ 
+ executable("demo") {
+diff --git a/ui/display/manager/BUILD.gn b/ui/display/manager/BUILD.gn
+index 66954c3d2bd6..4f27cf6bd78d 100644
+--- a/ui/display/manager/BUILD.gn
++++ b/ui/display/manager/BUILD.gn
+@@ -71,6 +71,10 @@ jumbo_component("manager") {
+ 
+   defines = [ "DISPLAY_MANAGER_IMPLEMENTATION" ]
+ 
++  if (build_display_configuration) {
++    defines += [ "INTERNAL_WINDOW_MODE" ]
++  }
++
+   if (is_chromeos) {
+     deps += [ "//chromeos" ]
+   }
+diff --git a/ui/display/manager/display_change_observer.cc b/ui/display/manager/display_change_observer.cc
+index 28bdc2d5c92f..b54fee7426d9 100644
+--- a/ui/display/manager/display_change_observer.cc
++++ b/ui/display/manager/display_change_observer.cc
+@@ -67,10 +67,12 @@ DisplayChangeObserver::GetInternalManagedDisplayModeList(
+                                  display_info.device_scale_factor());
+   // When display zoom option is available, we cannot change the mode for
+   // internal displays.
++#if defined(OS_CHROMEOS)
+   if (features::IsDisplayZoomSettingEnabled()) {
+     native_mode.set_is_default(true);
+     return ManagedDisplayInfo::ManagedDisplayModeList{native_mode};
+   }
++#endif
+   return CreateInternalManagedDisplayModeList(native_mode);
+ }
+ 
+@@ -128,9 +130,10 @@ DisplayChangeObserver::GetExternalManagedDisplayModeList(
+ 
+   // If we are using display zoom mode, we no longer have to add additional
+   // display modes for ultra high resolution displays.
++#if defined(OS_CHROMEOS)
+   if (features::IsDisplayZoomSettingEnabled())
+     return display_mode_list;
+-
++#endif
+   if (native_mode.size().width() >= kMinimumWidthFor4K) {
+     for (size_t i = 0; i < arraysize(kAdditionalDeviceScaleFactorsFor4k); ++i) {
+       ManagedDisplayMode mode(native_mode.size(), native_mode.refresh_rate(),
+@@ -200,10 +203,11 @@ void DisplayChangeObserver::OnDisplayModeChanged(
+ 
+     displays.emplace_back(CreateManagedDisplayInfo(state, mode_info));
+   }
+-
++#if defined(OS_CHROMOS)
+   display_manager_->touch_device_manager()->AssociateTouchscreens(
+       &displays,
+       ui::InputDeviceManager::GetInstance()->GetTouchscreenDevices());
++#endif
+   display_manager_->OnNativeDisplaysChanged(displays);
+ 
+   // For the purposes of user activity detection, ignore synthetic mouse events
+diff --git a/ui/display/manager/display_configurator.cc b/ui/display/manager/display_configurator.cc
+index 7ff4c289df63..dfad934ca347 100644
+--- a/ui/display/manager/display_configurator.cc
++++ b/ui/display/manager/display_configurator.cc
+@@ -160,8 +160,10 @@ DisplayConfigurator::DisplayLayoutManagerImpl::ParseDisplays(
+ 
+   // Hardware mirroring doesn't work on desktop-linux Chrome OS's fake displays.
+   // Skip mirror mode setup in that case to fall back on software mirroring.
++#if defined(OS_CHROMOS)
+   if (!chromeos::IsRunningAsSystemCompositor())
+     return cached_displays;
++#endif
+ 
+   if (cached_displays.size() <= 1)
+     return cached_displays;
+@@ -499,7 +501,11 @@ DisplayConfigurator::DisplayConfigurator()
+     : state_controller_(NULL),
+       mirroring_controller_(NULL),
+       is_panel_fitting_enabled_(false),
++#if defined(OS_CHROMOS)
+       configure_display_(chromeos::IsRunningAsSystemCompositor()),
++#else
++      configure_display_(true),
++#endif
+       current_display_state_(MULTIPLE_DISPLAY_STATE_INVALID),
+       current_power_state_(chromeos::DISPLAY_POWER_ALL_ON),
+       requested_display_state_(MULTIPLE_DISPLAY_STATE_INVALID),
+diff --git a/ui/display/manager/display_manager.h b/ui/display/manager/display_manager.h
+index 93b310aa5d91..cfd00070bd14 100644
+--- a/ui/display/manager/display_manager.h
++++ b/ui/display/manager/display_manager.h
+@@ -32,7 +32,7 @@
+ #include "ui/display/types/display_constants.h"
+ #include "ui/display/unified_desktop_utils.h"
+ 
+-#if defined(OS_CHROMEOS)
++#if defined(INTERNAL_WINDOW_MODE)
+ #include "base/optional.h"
+ #include "ui/display/manager/display_configurator.h"
+ #include "ui/display/manager/touch_device_manager.h"
+@@ -77,7 +77,7 @@ class DISPLAY_MANAGER_EXPORT DisplayManager
+     virtual void PreDisplayConfigurationChange(bool clear_focus) = 0;
+     virtual void PostDisplayConfigurationChange() = 0;
+ 
+-#if defined(OS_CHROMEOS)
++#if defined(INTERNAL_WINDOW_MODE)
+     // Get the DisplayConfigurator.
+     virtual DisplayConfigurator* display_configurator() = 0;
+ #endif
+@@ -133,7 +133,7 @@ class DISPLAY_MANAGER_EXPORT DisplayManager
+   // Returns the display id of the first display in the outupt list.
+   int64_t first_display_id() const { return first_display_id_; }
+ 
+-#if defined(OS_CHROMEOS)
++#if defined(INTERNAL_WINDOW_MODE)
+   TouchDeviceManager* touch_device_manager() const {
+     return touch_device_manager_.get();
+   }
+@@ -682,7 +682,7 @@ class DISPLAY_MANAGER_EXPORT DisplayManager
+   // OnWillProcessDisplayChanges() and OnDidProcessDisplayChanges().
+   int notify_depth_ = 0;
+ 
+-#if defined(OS_CHROMEOS)
++#if defined(INTERNAL_WINDOW_MODE)
+   std::unique_ptr<TouchDeviceManager> touch_device_manager_;
+ #endif
+ 
+diff --git a/ui/display/manager/touch_transform_controller.cc b/ui/display/manager/touch_transform_controller.cc
+index 4b7602d035d7..4b379d7ed33e 100644
+--- a/ui/display/manager/touch_transform_controller.cc
++++ b/ui/display/manager/touch_transform_controller.cc
+@@ -360,9 +360,13 @@ void TouchTransformController::UpdateTouchTransforms(
+       // In mirror mode, there is just one WindowTreeHost and two displays.
+       // Make the WindowTreeHost accept touch events from both displays.
+       std::size_t touch_display_index =
++#if defined(OS_CHROMEOS)
+           display_manager_->SoftwareMirroringEnabled()
+               ? primary_display_id_index
+               : index;
++#else
++          index;
++#endif
+       UpdateTouchTransform(display_id_list[primary_display_id_index],
+                            display_info_list[index],
+                            display_info_list[touch_display_index], update_data);
+-- 
+2.17.0
+

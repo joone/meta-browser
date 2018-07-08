@@ -1,0 +1,43 @@
+From bd454665eb4686406e86c1d2dab61cc96ab0d0b3 Mon Sep 17 00:00:00 2001
+From: Joone Hur <joone.hur@intel.com>
+Date: Thu, 5 Jul 2018 23:45:59 +0000
+Subject: [PATCH 09/11] Allow to build content_shell with Yocto
+
+---
+ base/test/BUILD.gn                 | 5 +----
+ content/shell/test_runner/BUILD.gn | 2 +-
+ 2 files changed, 2 insertions(+), 5 deletions(-)
+
+diff --git a/base/test/BUILD.gn b/base/test/BUILD.gn
+index 73977c8f8adf..730b68bf99e0 100644
+--- a/base/test/BUILD.gn
++++ b/base/test/BUILD.gn
+@@ -187,11 +187,8 @@ static_library("test_support") {
+ 
+   if (is_linux) {
+     public_deps += [ ":fontconfig_util_linux" ]
+-    data_deps = [
+-      "//third_party/test_fonts",
+-    ]
+     if (current_toolchain == host_toolchain) {
+-      data_deps += [ ":do_generate_fontconfig_caches" ]
++      data_deps = [ ":do_generate_fontconfig_caches" ]
+       data += [ "$root_out_dir/fontconfig_caches/" ]
+     }
+   }
+diff --git a/content/shell/test_runner/BUILD.gn b/content/shell/test_runner/BUILD.gn
+index 1beed186f2d8..ff87f6fa9dc5 100644
+--- a/content/shell/test_runner/BUILD.gn
++++ b/content/shell/test_runner/BUILD.gn
+@@ -203,7 +203,7 @@ group("resources") {
+     deps += [ ":copy_android_fonts_config" ]
+     data_deps += [ ":copy_android_fonts_config" ]
+   }
+-  if (is_android || is_linux || is_fuchsia) {
++  if (is_android || is_fuchsia) {
+     deps += [ "//third_party/test_fonts" ]
+     data_deps += [ "//third_party/test_fonts" ]
+   }
+-- 
+2.17.0
+

@@ -1,0 +1,70 @@
+From 80e4171c1ae2a35a5f1ffbe9790d94fcea483f80 Mon Sep 17 00:00:00 2001
+From: Joone Hur <joone.hur@intel.com>
+Date: Fri, 29 Jun 2018 21:21:25 +0000
+Subject: [PATCH 08/11] GoBack support with clicking on mouse right button
+
+---
+ content/browser/web_contents/web_contents_view_aura.cc | 4 ++++
+ content/public/browser/web_contents_delegate.h         | 2 ++
+ content/shell/browser/shell.h                          | 1 +
+ content/shell/browser/shell_aura.cc                    | 4 ++++
+ 4 files changed, 11 insertions(+)
+
+diff --git a/content/browser/web_contents/web_contents_view_aura.cc b/content/browser/web_contents/web_contents_view_aura.cc
+index 3aea2d29dc40..2bc661700601 100644
+--- a/content/browser/web_contents/web_contents_view_aura.cc
++++ b/content/browser/web_contents/web_contents_view_aura.cc
+@@ -1124,6 +1124,10 @@ void WebContentsViewAura::OnMouseEvent(ui::MouseEvent* event) {
+   if (!web_contents_->GetDelegate())
+     return;
+ 
++  if (event->IsOnlyRightMouseButton()) {
++      web_contents_->GetDelegate()->MouseRightButtonDown();
++  }
++
+   ui::EventType type = event->type();
+   if (type == ui::ET_MOUSE_PRESSED) {
+     // Linux window managers like to handle raise-on-click themselves.  If we
+diff --git a/content/public/browser/web_contents_delegate.h b/content/public/browser/web_contents_delegate.h
+index 28cf408db3b5..5a9e72602cac 100644
+--- a/content/public/browser/web_contents_delegate.h
++++ b/content/public/browser/web_contents_delegate.h
+@@ -167,6 +167,8 @@ class CONTENT_EXPORT WebContentsDelegate {
+                                   bool motion,
+                                   bool exited) {}
+ 
++  virtual void MouseRightButtonDown() {}
++
+   // Request the delegate to change the zoom level of the current tab.
+   virtual void ContentsZoomChange(bool zoom_in) {}
+ 
+diff --git a/content/shell/browser/shell.h b/content/shell/browser/shell.h
+index abca5b3e4fb2..6cd7f8a13d67 100644
+--- a/content/shell/browser/shell.h
++++ b/content/shell/browser/shell.h
+@@ -180,6 +180,7 @@ class Shell : public WebContentsDelegate,
+                                          bool allowed_per_prefs,
+                                          const url::Origin& origin,
+                                          const GURL& resource_url) override;
++  void MouseRightButtonDown() override;
+ 
+   static gfx::Size GetShellDefaultSize();
+ 
+diff --git a/content/shell/browser/shell_aura.cc b/content/shell/browser/shell_aura.cc
+index 082e1cd3cd3e..e20ab3eda863 100644
+--- a/content/shell/browser/shell_aura.cc
++++ b/content/shell/browser/shell_aura.cc
+@@ -69,6 +69,10 @@ void Shell::Close() {
+ void Shell::PlatformSetTitle(const base::string16& title) {
+ }
+ 
++void Shell::MouseRightButtonDown() {
++  web_contents_->GetController().GoBack();
++}
++
+ void  Shell::OnConfigurationChanged() {
+   if (is_configuring_) {
+     should_configure_ = true;
+-- 
+2.17.0
+

@@ -1,0 +1,125 @@
+From b23b8e74a5040ebeabf46cd9d03a7113639e63ed Mon Sep 17 00:00:00 2001
+From: Joone Hur <joone.hur@intel.com>
+Date: Tue, 26 Jun 2018 23:15:27 +0000
+Subject: [PATCH 05/11] Add support for mouse cursor
+
+---
+ content/shell/browser/shell_platform_data_aura.cc           | 1 +
+ services/ui/ws/platform_display_default.cc                  | 2 +-
+ ui/aura/window_tree_host_platform.cc                        | 6 ++++++
+ ui/events/ozone/BUILD.gn                                    | 4 ++--
+ ui/events/ozone/{chromeos => }/cursor_controller.cc         | 2 +-
+ ui/events/ozone/{chromeos => }/cursor_controller.h          | 0
+ .../ozone/{chromeos => }/cursor_controller_unittest.cc      | 0
+ ui/ozone/platform/drm/host/drm_cursor.cc                    | 4 ++--
+ 8 files changed, 13 insertions(+), 6 deletions(-)
+ rename ui/events/ozone/{chromeos => }/cursor_controller.cc (97%)
+ rename ui/events/ozone/{chromeos => }/cursor_controller.h (100%)
+ rename ui/events/ozone/{chromeos => }/cursor_controller_unittest.cc (100%)
+
+diff --git a/content/shell/browser/shell_platform_data_aura.cc b/content/shell/browser/shell_platform_data_aura.cc
+index be1d936b73e0..cfc4cad548c8 100644
+--- a/content/shell/browser/shell_platform_data_aura.cc
++++ b/content/shell/browser/shell_platform_data_aura.cc
+@@ -63,6 +63,7 @@ ShellPlatformDataAura::ShellPlatformDataAura(const gfx::Size& initial_size) {
+   CHECK(aura::Env::GetInstance());
+   host_.reset(aura::WindowTreeHost::Create(gfx::Rect(initial_size)));
+   host_->InitHost();
++  host_->SetCursor(ui::CursorType::kPointer);
+   host_->window()->Show();
+   host_->window()->SetLayoutManager(new FillLayout(host_->window()));
+ 
+diff --git a/services/ui/ws/platform_display_default.cc b/services/ui/ws/platform_display_default.cc
+index b6542af8f0ea..5f3a1bfda738 100644
+--- a/services/ui/ws/platform_display_default.cc
++++ b/services/ui/ws/platform_display_default.cc
+@@ -21,7 +21,7 @@
+ #include "ui/platform_window/stub/stub_window.h"
+ 
+ #if defined(USE_OZONE)
+-#include "ui/events/ozone/chromeos/cursor_controller.h"
++#include "ui/events/ozone/cursor_controller.h"
+ #endif
+ 
+ namespace ui {
+diff --git a/ui/aura/window_tree_host_platform.cc b/ui/aura/window_tree_host_platform.cc
+index 892fabd5115b..af07d1fa7897 100644
+--- a/ui/aura/window_tree_host_platform.cc
++++ b/ui/aura/window_tree_host_platform.cc
+@@ -21,6 +21,7 @@
+ #endif
+ 
+ #if defined(USE_OZONE)
++#include "ui/base/cursor/cursor_loader_ozone.h"
+ #include "ui/ozone/public/ozone_platform.h"
+ #endif
+ 
+@@ -143,6 +144,11 @@ void WindowTreeHostPlatform::SetCursorNative(gfx::NativeCursor cursor) {
+   cursor_loader.SetPlatformCursor(&cursor);
+ #endif
+ 
++#if defined(USE_OZONE)
++  ui::CursorLoaderOzone cursor_loader;
++  cursor_loader.SetPlatformCursor(&cursor);
++#endif
++
+   platform_window_->SetCursor(cursor.platform());
+ }
+ 
+diff --git a/ui/events/ozone/BUILD.gn b/ui/events/ozone/BUILD.gn
+index f9a33289569c..11a7be4ba942 100644
+--- a/ui/events/ozone/BUILD.gn
++++ b/ui/events/ozone/BUILD.gn
+@@ -21,8 +21,8 @@ if (use_xkbcommon) {
+ if (use_ozone) {
+   component("events_ozone") {
+     sources = [
+-      "chromeos/cursor_controller.cc",
+-      "chromeos/cursor_controller.h",
++      "cursor_controller.cc",
++      "cursor_controller.h",
+       "device/device_event.cc",
+       "device/device_event.h",
+       "device/device_event_observer.h",
+diff --git a/ui/events/ozone/chromeos/cursor_controller.cc b/ui/events/ozone/cursor_controller.cc
+similarity index 97%
+rename from ui/events/ozone/chromeos/cursor_controller.cc
+rename to ui/events/ozone/cursor_controller.cc
+index 91273c6a9bec..3ca85f8f0e53 100644
+--- a/ui/events/ozone/chromeos/cursor_controller.cc
++++ b/ui/events/ozone/cursor_controller.cc
+@@ -2,7 +2,7 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "ui/events/ozone/chromeos/cursor_controller.h"
++#include "ui/events/ozone/cursor_controller.h"
+ 
+ namespace ui {
+ 
+diff --git a/ui/events/ozone/chromeos/cursor_controller.h b/ui/events/ozone/cursor_controller.h
+similarity index 100%
+rename from ui/events/ozone/chromeos/cursor_controller.h
+rename to ui/events/ozone/cursor_controller.h
+diff --git a/ui/events/ozone/chromeos/cursor_controller_unittest.cc b/ui/events/ozone/cursor_controller_unittest.cc
+similarity index 100%
+rename from ui/events/ozone/chromeos/cursor_controller_unittest.cc
+rename to ui/events/ozone/cursor_controller_unittest.cc
+diff --git a/ui/ozone/platform/drm/host/drm_cursor.cc b/ui/ozone/platform/drm/host/drm_cursor.cc
+index 8ffc06b4c05e..16fb4998dc84 100644
+--- a/ui/ozone/platform/drm/host/drm_cursor.cc
++++ b/ui/ozone/platform/drm/host/drm_cursor.cc
+@@ -9,8 +9,8 @@
+ #include "ui/ozone/platform/drm/host/drm_window_host.h"
+ #include "ui/ozone/platform/drm/host/drm_window_host_manager.h"
+ 
+-#if defined(OS_CHROMEOS)
+-#include "ui/events/ozone/chromeos/cursor_controller.h"
++#if defined(DISPLAY_CONFIGURATION)
++#include "ui/events/ozone/cursor_controller.h"
+ #endif
+ 
+ namespace ui {
+-- 
+2.17.0
+
