@@ -1,0 +1,9 @@
+[Unit]
+Description=content_shell demo based on DRM/KMS
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/content_shell.sh
+
+[Install]
+WantedBy=multi-user.target
