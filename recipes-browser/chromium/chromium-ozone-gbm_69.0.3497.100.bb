@@ -12,6 +12,8 @@ SRC_URI += " \
  file://0008-Build-fix.patch \
  file://0009-RELAND-vaapi-decode-on-client-NativePixmaps.patch \
  file://0010-add-mojo-layouttest-test.patch \
+ file://init \
+ file://content_shell.service \
 "
 DEPENDS += "\
         virtual/egl \
