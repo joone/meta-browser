@@ -1,7 +1,7 @@
 From c9c2bf1bed1ef3f49f29e36e1b4f872f920369ca Mon Sep 17 00:00:00 2001
 From: Joone Hur <joone.hur@intel.com>
 Date: Wed, 27 Jun 2018 19:50:18 +0000
-Subject: [PATCH 4/9] Enable zero-copy texture uplad using dmabuf
+Subject: [PATCH 04/14] Enable zero-copy texture uplad using dmabuf
 
 ---
  ui/gfx/BUILD.gn                                     |  5 +++++
@@ -9,7 +9,7 @@ Subject: [PATCH 4/9] Enable zero-copy texture uplad using dmabuf
  2 files changed, 11 insertions(+), 5 deletions(-)
 
 diff --git a/ui/gfx/BUILD.gn b/ui/gfx/BUILD.gn
-index 5932b6d..17c310a 100644
+index 5932b6d769fd..17c310af0a56 100644
 --- a/ui/gfx/BUILD.gn
 +++ b/ui/gfx/BUILD.gn
 @@ -7,6 +7,7 @@ import("//build/config/ui.gni")
@@ -32,7 +32,7 @@ index 5932b6d..17c310a 100644
  
    if (is_linux || is_android) {
 diff --git a/ui/gfx/linux/client_native_pixmap_factory_dmabuf.cc b/ui/gfx/linux/client_native_pixmap_factory_dmabuf.cc
-index 0fdb9cb..0ade2be 100644
+index 0fdb9cb3f87e..0ade2be1061d 100644
 --- a/ui/gfx/linux/client_native_pixmap_factory_dmabuf.cc
 +++ b/ui/gfx/linux/client_native_pixmap_factory_dmabuf.cc
 @@ -12,7 +12,7 @@
@@ -82,5 +82,5 @@ index 0fdb9cb..0ade2be 100644
  #else
          NOTREACHED();
 -- 
-2.7.4
+2.20.1
 

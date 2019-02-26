@@ -1,7 +1,7 @@
-From 243a7674b264ba43645258314c2352e1a04c8ef0 Mon Sep 17 00:00:00 2001
+From a36269e1b1120ebd757ccaf678e2d9804e7a0d63 Mon Sep 17 00:00:00 2001
 From: Joone Hur <joone.hur@intel.com>
 Date: Fri, 9 Nov 2018 12:24:08 -0800
-Subject: [PATCH 6/9] Allow to build content_shell with Yocto
+Subject: [PATCH 06/14] Allow to build content_shell with Yocto
 
 Fix the below problem by removeing test fonts dependency.
 
@@ -15,7 +15,7 @@ Fix the below problem by removeing test fonts dependency.
  2 files changed, 1 insertion(+), 7 deletions(-)
 
 diff --git a/base/test/BUILD.gn b/base/test/BUILD.gn
-index a90c42c..430667c 100644
+index a90c42c20f1e..430667c6848c 100644
 --- a/base/test/BUILD.gn
 +++ b/base/test/BUILD.gn
 @@ -204,11 +204,8 @@ static_library("test_support") {
@@ -32,7 +32,7 @@ index a90c42c..430667c 100644
      }
    }
 diff --git a/content/shell/test_runner/BUILD.gn b/content/shell/test_runner/BUILD.gn
-index 1b5c11a..7ddfdd7 100644
+index 1b5c11abca96..7ddfdd72c54d 100644
 --- a/content/shell/test_runner/BUILD.gn
 +++ b/content/shell/test_runner/BUILD.gn
 @@ -169,9 +169,6 @@ group("resources") {
@@ -46,5 +46,5 @@ index 1b5c11a..7ddfdd7 100644
  
    if (is_android || is_fuchsia) {
 -- 
-2.7.4
+2.20.1
 

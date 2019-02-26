@@ -1,7 +1,7 @@
-From db0d348d5e6e6f2831af1f290a7d51a6c2cb1ea8 Mon Sep 17 00:00:00 2001
+From 2703e819b32128c3512296ee85e8ea6eba0fe51d Mon Sep 17 00:00:00 2001
 From: Miguel Casas <mcasas@chromium.org>
 Date: Mon, 23 Jul 2018 20:02:11 +0000
-Subject: [PATCH 9/9] RELAND: vaapi: decode on client NativePixmaps
+Subject: [PATCH 09/14] RELAND: vaapi: decode on client NativePixmaps
 
 This CL relands crrev.com/c/1021675 that got reverted as predecessor
 to crrev.com/c/1104394 (but was otherwise innocent AFAIK). The said
@@ -57,17 +57,17 @@ Commit-Queue: Miguel Casas <mcasas@chromium.org>
 Reviewed-by: Miguel Casas <mcasas@chromium.org>
 Cr-Commit-Position: refs/heads/master@{#577226}
 ---
- media/gpu/vaapi/vaapi_picture.cc                   |   6 +
- media/gpu/vaapi/vaapi_picture.h                    |   5 +
- media/gpu/vaapi/vaapi_picture_native_pixmap.cc     |   4 +
- media/gpu/vaapi/vaapi_picture_native_pixmap.h      |   2 +
- media/gpu/vaapi/vaapi_video_decode_accelerator.cc  | 134 +++++++++++++++------
- media/gpu/vaapi/vaapi_video_decode_accelerator.h   |  48 ++++----
- .../vaapi_video_decode_accelerator_unittest.cc     |   2 +-
+ media/gpu/vaapi/vaapi_picture.cc              |   6 +
+ media/gpu/vaapi/vaapi_picture.h               |   5 +
+ .../gpu/vaapi/vaapi_picture_native_pixmap.cc  |   4 +
+ media/gpu/vaapi/vaapi_picture_native_pixmap.h |   2 +
+ .../vaapi/vaapi_video_decode_accelerator.cc   | 134 +++++++++++++-----
+ .../vaapi/vaapi_video_decode_accelerator.h    |  48 ++++---
+ ...vaapi_video_decode_accelerator_unittest.cc |   2 +-
  7 files changed, 141 insertions(+), 60 deletions(-)
 
 diff --git a/media/gpu/vaapi/vaapi_picture.cc b/media/gpu/vaapi/vaapi_picture.cc
-index 58c1bc0..65d35bf 100644
+index 58c1bc09876c..65d35bf8d698 100644
 --- a/media/gpu/vaapi/vaapi_picture.cc
 +++ b/media/gpu/vaapi/vaapi_picture.cc
 @@ -4,6 +4,8 @@
@@ -89,7 +89,7 @@ index 58c1bc0..65d35bf 100644
 +
  }  // namespace media
 diff --git a/media/gpu/vaapi/vaapi_picture.h b/media/gpu/vaapi/vaapi_picture.h
-index 5ee61a9..d9a296b 100644
+index 5ee61a9cb3f7..d9a296b9385b 100644
 --- a/media/gpu/vaapi/vaapi_picture.h
 +++ b/media/gpu/vaapi/vaapi_picture.h
 @@ -22,6 +22,8 @@
@@ -112,7 +112,7 @@ index 5ee61a9..d9a296b 100644
    VaapiPicture(const scoped_refptr<VaapiWrapper>& vaapi_wrapper,
                 const MakeGLContextCurrentCallback& make_context_current_cb,
 diff --git a/media/gpu/vaapi/vaapi_picture_native_pixmap.cc b/media/gpu/vaapi/vaapi_picture_native_pixmap.cc
-index 64b0b8d..3a6cfdd 100644
+index 64b0b8d535bd..3a6cfddf3273 100644
 --- a/media/gpu/vaapi/vaapi_picture_native_pixmap.cc
 +++ b/media/gpu/vaapi/vaapi_picture_native_pixmap.cc
 @@ -46,6 +46,10 @@ bool VaapiPictureNativePixmap::AllowOverlay() const {
@@ -127,7 +127,7 @@ index 64b0b8d..3a6cfdd 100644
      gfx::BufferFormat format) const {
    switch (format) {
 diff --git a/media/gpu/vaapi/vaapi_picture_native_pixmap.h b/media/gpu/vaapi/vaapi_picture_native_pixmap.h
-index ab852425..5d6c38b 100644
+index ab8524250499..5d6c38bad626 100644
 --- a/media/gpu/vaapi/vaapi_picture_native_pixmap.h
 +++ b/media/gpu/vaapi/vaapi_picture_native_pixmap.h
 @@ -8,6 +8,7 @@
@@ -147,7 +147,7 @@ index ab852425..5d6c38b 100644
    unsigned BufferFormatToInternalFormat(gfx::BufferFormat format) const;
  
 diff --git a/media/gpu/vaapi/vaapi_video_decode_accelerator.cc b/media/gpu/vaapi/vaapi_video_decode_accelerator.cc
-index b347326..4f7aac4 100644
+index b3473260d979..4f7aac4418b2 100644
 --- a/media/gpu/vaapi/vaapi_video_decode_accelerator.cc
 +++ b/media/gpu/vaapi/vaapi_video_decode_accelerator.cc
 @@ -128,6 +128,8 @@ void VaapiVideoDecodeAccelerator::NotifyError(Error error) {
@@ -381,7 +381,7 @@ index b347326..4f7aac4 100644
  
  // static
 diff --git a/media/gpu/vaapi/vaapi_video_decode_accelerator.h b/media/gpu/vaapi/vaapi_video_decode_accelerator.h
-index 271bcc00..be012ad 100644
+index 271bcc00d674..be012add0835 100644
 --- a/media/gpu/vaapi/vaapi_video_decode_accelerator.h
 +++ b/media/gpu/vaapi/vaapi_video_decode_accelerator.h
 @@ -18,6 +18,7 @@
@@ -492,7 +492,7 @@ index 271bcc00..be012ad 100644
    // WeakPtr<> pointing to |this| for use in posting tasks from the decoder
    // thread back to the ChildThread.  Because the decoder thread is a member of
 diff --git a/media/gpu/vaapi/vaapi_video_decode_accelerator_unittest.cc b/media/gpu/vaapi/vaapi_video_decode_accelerator_unittest.cc
-index 76907a6..820c106 100644
+index 76907a601382..820c10663ae5 100644
 --- a/media/gpu/vaapi/vaapi_video_decode_accelerator_unittest.cc
 +++ b/media/gpu/vaapi/vaapi_video_decode_accelerator_unittest.cc
 @@ -233,7 +233,6 @@ class VaapiVideoDecodeAcceleratorTest : public TestWithParam<VideoCodecProfile>,
@@ -512,5 +512,5 @@ index 76907a6..820c106 100644
          .WillOnce(Return(AcceleratedVideoDecoder::kRanOutOfStreamData));
      EXPECT_CALL(*this, NotifyEndOfBitstreamBuffer(bitstream_id))
 -- 
-2.7.4
+2.20.1
 

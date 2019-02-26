@@ -1,16 +1,16 @@
 From cba4c6fde1ae1f542b22c66f22d78d7bf2742b54 Mon Sep 17 00:00:00 2001
 From: Joone Hur <joone.hur@intel.com>
 Date: Tue, 26 Jun 2018 01:14:16 +0000
-Subject: [PATCH 2/9] Make content_shell works with ozone-gbm
+Subject: [PATCH 02/14] Make content_shell works with ozone-gbm
 
 ---
- content/shell/browser/shell.cc      |  9 +++++--
- content/shell/browser/shell.h       | 32 ++++++++++++++++++++++-
- content/shell/browser/shell_aura.cc | 52 +++++++++++++++++++++++++++++++++++++
+ content/shell/browser/shell.cc      |  9 +++--
+ content/shell/browser/shell.h       | 32 +++++++++++++++++-
+ content/shell/browser/shell_aura.cc | 52 +++++++++++++++++++++++++++++
  3 files changed, 90 insertions(+), 3 deletions(-)
 
 diff --git a/content/shell/browser/shell.cc b/content/shell/browser/shell.cc
-index 4964305..6739c5f 100644
+index 4964305229b2..6739c5fa124a 100644
 --- a/content/shell/browser/shell.cc
 +++ b/content/shell/browser/shell.cc
 @@ -46,6 +46,8 @@
@@ -44,7 +44,7 @@ index 4964305..6739c5f 100644
    shell->PlatformSetContents();
  
 diff --git a/content/shell/browser/shell.h b/content/shell/browser/shell.h
-index 11cf895..57feeb1 100644
+index 11cf895f1629..57feeb165884 100644
 --- a/content/shell/browser/shell.h
 +++ b/content/shell/browser/shell.h
 @@ -18,9 +18,18 @@
@@ -111,7 +111,7 @@ index 11cf895..57feeb1 100644
  
  }  // namespace content
 diff --git a/content/shell/browser/shell_aura.cc b/content/shell/browser/shell_aura.cc
-index 51f15cd..69b3af7 100644
+index 51f15cd17c38..69b3af707e53 100644
 --- a/content/shell/browser/shell_aura.cc
 +++ b/content/shell/browser/shell_aura.cc
 @@ -10,6 +10,8 @@
@@ -179,5 +179,5 @@ index 51f15cd..69b3af7 100644
 +
  }  // namespace content
 -- 
-2.7.4
+2.20.1
 

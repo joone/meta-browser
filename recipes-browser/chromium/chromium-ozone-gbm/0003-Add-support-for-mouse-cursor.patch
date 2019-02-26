@@ -1,30 +1,24 @@
 From bfbf317a22b96ad0421e0a117c731a4726f184d5 Mon Sep 17 00:00:00 2001
 From: Joone Hur <joone.hur@intel.com>
 Date: Tue, 26 Jun 2018 23:15:27 +0000
-Subject: [PATCH 3/9] Add support for mouse cursor
+Subject: [PATCH 03/14] Add support for mouse cursor
 
 ---
- content/shell/browser/shell_platform_data_aura.cc  |   1 +
- services/ui/ws/platform_display_default.cc         |   2 +-
- ui/aura/window_tree_host_platform.cc               |   6 ++
- ui/events/ozone/BUILD.gn                           |   4 +-
- ui/events/ozone/chromeos/cursor_controller.cc      |  91 ------------------
- ui/events/ozone/chromeos/cursor_controller.h       | 103 ---------------------
- .../ozone/chromeos/cursor_controller_unittest.cc   |  65 -------------
- ui/events/ozone/cursor_controller.cc               |  91 ++++++++++++++++++
- ui/events/ozone/cursor_controller.h                | 103 +++++++++++++++++++++
- ui/events/ozone/cursor_controller_unittest.cc      |  65 +++++++++++++
- ui/ozone/platform/drm/host/drm_cursor.cc           |   7 +-
- 11 files changed, 273 insertions(+), 265 deletions(-)
- delete mode 100644 ui/events/ozone/chromeos/cursor_controller.cc
- delete mode 100644 ui/events/ozone/chromeos/cursor_controller.h
- delete mode 100644 ui/events/ozone/chromeos/cursor_controller_unittest.cc
- create mode 100644 ui/events/ozone/cursor_controller.cc
- create mode 100644 ui/events/ozone/cursor_controller.h
- create mode 100644 ui/events/ozone/cursor_controller_unittest.cc
+ content/shell/browser/shell_platform_data_aura.cc          | 1 +
+ services/ui/ws/platform_display_default.cc                 | 2 +-
+ ui/aura/window_tree_host_platform.cc                       | 6 ++++++
+ ui/events/ozone/BUILD.gn                                   | 4 ++--
+ ui/events/ozone/{chromeos => }/cursor_controller.cc        | 2 +-
+ ui/events/ozone/{chromeos => }/cursor_controller.h         | 0
+ .../ozone/{chromeos => }/cursor_controller_unittest.cc     | 0
+ ui/ozone/platform/drm/host/drm_cursor.cc                   | 7 ++++---
+ 8 files changed, 15 insertions(+), 7 deletions(-)
+ rename ui/events/ozone/{chromeos => }/cursor_controller.cc (97%)
+ rename ui/events/ozone/{chromeos => }/cursor_controller.h (100%)
+ rename ui/events/ozone/{chromeos => }/cursor_controller_unittest.cc (100%)
 
 diff --git a/content/shell/browser/shell_platform_data_aura.cc b/content/shell/browser/shell_platform_data_aura.cc
-index 1a924a6..ff0e75f 100644
+index 1a924a60be74..ff0e75ff448c 100644
 --- a/content/shell/browser/shell_platform_data_aura.cc
 +++ b/content/shell/browser/shell_platform_data_aura.cc
 @@ -100,6 +100,7 @@ ShellPlatformDataAura::ShellPlatformDataAura(const gfx::Size& initial_size) {
@@ -36,7 +30,7 @@ index 1a924a6..ff0e75f 100644
    host_->window()->SetLayoutManager(new FillLayout(host_->window()));
  
 diff --git a/services/ui/ws/platform_display_default.cc b/services/ui/ws/platform_display_default.cc
-index f75910d..2f272df 100644
+index f75910d743f1..2f272dfe1aa8 100644
 --- a/services/ui/ws/platform_display_default.cc
 +++ b/services/ui/ws/platform_display_default.cc
 @@ -21,7 +21,7 @@
@@ -49,7 +43,7 @@ index f75910d..2f272df 100644
  
  namespace ui {
 diff --git a/ui/aura/window_tree_host_platform.cc b/ui/aura/window_tree_host_platform.cc
-index ae7a71a..f27cdd4 100644
+index ae7a71ac0c49..f27cdd4ea803 100644
 --- a/ui/aura/window_tree_host_platform.cc
 +++ b/ui/aura/window_tree_host_platform.cc
 @@ -25,6 +25,7 @@
@@ -73,7 +67,7 @@ index ae7a71a..f27cdd4 100644
  }
  
 diff --git a/ui/events/ozone/BUILD.gn b/ui/events/ozone/BUILD.gn
-index 13f85b1..607f982 100644
+index 13f85b191967..607f9828f245 100644
 --- a/ui/events/ozone/BUILD.gn
 +++ b/ui/events/ozone/BUILD.gn
 @@ -21,8 +21,8 @@ if (use_xkbcommon) {
@@ -87,562 +81,32 @@ index 13f85b1..607f982 100644
        "device/device_event.cc",
        "device/device_event.h",
        "device/device_event_observer.h",
-diff --git a/ui/events/ozone/chromeos/cursor_controller.cc b/ui/events/ozone/chromeos/cursor_controller.cc
-deleted file mode 100644
-index 91273c6..0000000
+diff --git a/ui/events/ozone/chromeos/cursor_controller.cc b/ui/events/ozone/cursor_controller.cc
+similarity index 97%
+rename from ui/events/ozone/chromeos/cursor_controller.cc
+rename to ui/events/ozone/cursor_controller.cc
+index 91273c6a9bec..3ca85f8f0e53 100644
 --- a/ui/events/ozone/chromeos/cursor_controller.cc
-+++ /dev/null
-@@ -1,91 +0,0 @@
--// Copyright (c) 2014 The Chromium Authors. All rights reserved.
--// Use of this source code is governed by a BSD-style license that can be
--// found in the LICENSE file.
--
--#include "ui/events/ozone/chromeos/cursor_controller.h"
--
--namespace ui {
--
--namespace {
--
--void TransformCursorMove(display::Display::Rotation rotation,
--                         float scale,
--                         gfx::Vector2dF* delta) {
--  float dx;
--  float dy;
--
--  switch (rotation) {
--    case display::Display::ROTATE_90:
--      dx = -delta->y();
--      dy = delta->x();
--      break;
--    case display::Display::ROTATE_180:
--      dx = -delta->x();
--      dy = -delta->y();
--      break;
--    case display::Display::ROTATE_270:
--      dx = delta->y();
--      dy = -delta->x();
--      break;
--    default:  // display::Display::ROTATE_0
--      dx = delta->x();
--      dy = delta->y();
--      break;
--  }
--
--  delta->set_x(dx * scale);
--  delta->set_y(dy * scale);
--}
--
--}  // namespace
--
--// static
--CursorController* CursorController::GetInstance() {
--  return base::Singleton<CursorController>::get();
--}
--
--void CursorController::AddCursorObserver(CursorObserver* observer) {
--  base::AutoLock lock(cursor_observers_lock_);
--  cursor_observers_.AddObserver(observer);
--}
--
--void CursorController::RemoveCursorObserver(CursorObserver* observer) {
--  base::AutoLock lock(cursor_observers_lock_);
--  cursor_observers_.RemoveObserver(observer);
--}
--
--void CursorController::SetCursorConfigForWindow(
--    gfx::AcceleratedWidget widget,
--    display::Display::Rotation rotation,
--    float scale) {
--  base::AutoLock lock(window_to_cursor_configuration_map_lock_);
--  PerWindowCursorConfiguration config = {rotation, scale};
--  window_to_cursor_configuration_map_[widget] = config;
--}
--
--void CursorController::ClearCursorConfigForWindow(
--    gfx::AcceleratedWidget widget) {
--  window_to_cursor_configuration_map_.erase(widget);
--}
--
--void CursorController::ApplyCursorConfigForWindow(gfx::AcceleratedWidget widget,
--                                                  gfx::Vector2dF* delta) const {
--  base::AutoLock lock(window_to_cursor_configuration_map_lock_);
--  auto it = window_to_cursor_configuration_map_.find(widget);
--  if (it != window_to_cursor_configuration_map_.end())
--    TransformCursorMove(it->second.rotation, it->second.scale, delta);
--}
--
--void CursorController::SetCursorLocation(const gfx::PointF& location) {
--  base::AutoLock lock(cursor_observers_lock_);
--  for (auto& observer : cursor_observers_)
--    observer.OnCursorLocationChanged(location);
--}
--
--CursorController::CursorController() {
--}
--
--CursorController::~CursorController() {
--}
--
--}  // namespace ui
-diff --git a/ui/events/ozone/chromeos/cursor_controller.h b/ui/events/ozone/chromeos/cursor_controller.h
-deleted file mode 100644
-index e886040..0000000
---- a/ui/events/ozone/chromeos/cursor_controller.h
-+++ /dev/null
-@@ -1,103 +0,0 @@
--// Copyright 2014 The Chromium Authors. All rights reserved.
--// Use of this source code is governed by a BSD-style license that can be
--// found in the LICENSE file.
--
--#ifndef UI_EVENTS_OZONE_CHROMEOS_CURSOR_CONTROLLER_H_
--#define UI_EVENTS_OZONE_CHROMEOS_CURSOR_CONTROLLER_H_
--
--#include <map>
--
--#include "base/macros.h"
--#include "base/memory/singleton.h"
--#include "base/observer_list.h"
--#include "base/synchronization/lock.h"
--#include "ui/display/display.h"
--#include "ui/events/ozone/events_ozone_export.h"
--#include "ui/events/platform_event.h"
--#include "ui/gfx/geometry/point_f.h"
--#include "ui/gfx/geometry/vector2d_f.h"
--#include "ui/gfx/native_widget_types.h"
--
--namespace ui {
--
--// Manager for per-window cursor settings.
--//
--// This is used to apply a rotation & acceleration to each vector added to the
--// cursor position on ChromeOS.
--//
--// This has 3 uses:
--//
--//  (1) Fixing cursor movement direction for rotated displays.
--//  (2) Fixing cursor movement speed based on scale factor.
--//  (3) Tweaking cursor movement speed on external displays.
--//
--// This HACK is necessary because ash handles rotation and handles scaling but
--// does NOT handle the cursor movement (except that it sends a message to x11 or
--// ozone to activate this hack).
--//
--// TODO(spang): Don't worry, we have a plan to remove this.
--class EVENTS_OZONE_EXPORT CursorController {
-- public:
--  class CursorObserver {
--   public:
--    // Called when cursor location changed.
--    virtual void OnCursorLocationChanged(const gfx::PointF& location) = 0;
--
--   protected:
--    virtual ~CursorObserver() {}
--  };
--
--  static CursorController* GetInstance();
--
--  void AddCursorObserver(CursorObserver* observer);
--  void RemoveCursorObserver(CursorObserver* observer);
--
--  // Changes the rotation & scale applied for a window.
--  void SetCursorConfigForWindow(gfx::AcceleratedWidget widget,
--                                display::Display::Rotation rotation,
--                                float scale);
--
--  // Cleans up all state associated with a window.
--  void ClearCursorConfigForWindow(gfx::AcceleratedWidget widget);
--
--  // Applies the current settings for a window to a cursor movement vector.
--  //
--  // The rotation applies counter-clockwise (to negate clockwise display
--  // rotation) and the result is multiplied by scale.
--  //
--  // e.g. if (dx, dy) = (2, 3) and (scale, rotation) = (2.f, 90deg)
--  //      then we set (dx, dy) = (-6, 4)
--  //
--  // Since scale generally includes DSF, you can think of the input
--  // vector unit as DIP and the output vector unit as pixels.
--  void ApplyCursorConfigForWindow(gfx::AcceleratedWidget widget,
--                                  gfx::Vector2dF* delta) const;
--
--  // Notifies controller of new cursor location.
--  void SetCursorLocation(const gfx::PointF& location);
--
-- private:
--  CursorController();
--  ~CursorController();
--  friend struct base::DefaultSingletonTraits<CursorController>;
--
--  struct PerWindowCursorConfiguration {
--    display::Display::Rotation rotation;
--    float scale;
--  };
--
--  typedef std::map<gfx::AcceleratedWidget, PerWindowCursorConfiguration>
--      WindowToCursorConfigurationMap;
--
--  WindowToCursorConfigurationMap window_to_cursor_configuration_map_;
--  mutable base::Lock window_to_cursor_configuration_map_lock_;
--
--  base::ObserverList<CursorObserver> cursor_observers_;
--  mutable base::Lock cursor_observers_lock_;
--
--  DISALLOW_COPY_AND_ASSIGN(CursorController);
--};
--
--}  // namespace ui
--
--#endif  // UI_EVENTS_OZONE_CHROMEOS_CURSOR_CONTROLLER_H_
-diff --git a/ui/events/ozone/chromeos/cursor_controller_unittest.cc b/ui/events/ozone/chromeos/cursor_controller_unittest.cc
-deleted file mode 100644
-index 460bc55..0000000
---- a/ui/events/ozone/chromeos/cursor_controller_unittest.cc
-+++ /dev/null
-@@ -1,65 +0,0 @@
--// Copyright 2014 The Chromium Authors. All rights reserved.
--// Use of this source code is governed by a BSD-style license that can be
--// found in the LICENSE file.
--
--#include "base/macros.h"
--#include "testing/gtest/include/gtest/gtest.h"
--#include "ui/events/ozone/chromeos/cursor_controller.h"
--
--namespace ui {
--
--namespace {
--
--const gfx::AcceleratedWidget kTestWindow = 1;
--
--}  // namespace
--
--class CursorControllerTest : public testing::Test {
-- public:
--  CursorControllerTest() {}
--  ~CursorControllerTest() override {}
--
--  void TearDown() override {
--    ui::CursorController::GetInstance()->ClearCursorConfigForWindow(
--        kTestWindow);
--  }
--
--  DISALLOW_COPY_AND_ASSIGN(CursorControllerTest);
--};
--
--TEST_F(CursorControllerTest, UnconfiguredIdentity) {
--  ui::CursorController* cursor_controller = CursorController::GetInstance();
--
--  // Check that unconfigured windows use identity.
--  gfx::Vector2dF delta(2.f, 3.f);
--  cursor_controller->ApplyCursorConfigForWindow(kTestWindow, &delta);
--  EXPECT_FLOAT_EQ(2.f, delta.x());
--  EXPECT_FLOAT_EQ(3.f, delta.y());
--}
--
--TEST_F(CursorControllerTest, ClearedIdentity) {
--  ui::CursorController* cursor_controller = CursorController::GetInstance();
--
--  // Check that configured & cleared windows use identity.
--  cursor_controller->SetCursorConfigForWindow(
--      kTestWindow, display::Display::ROTATE_180, 3.2f);
--  cursor_controller->ClearCursorConfigForWindow(kTestWindow);
--  gfx::Vector2dF delta(3.f, 5.f);
--  cursor_controller->ApplyCursorConfigForWindow(kTestWindow, &delta);
--  EXPECT_FLOAT_EQ(3.f, delta.x());
--  EXPECT_FLOAT_EQ(5.f, delta.y());
--}
--
--TEST_F(CursorControllerTest, RotatedHighDpi) {
--  ui::CursorController* cursor_controller = CursorController::GetInstance();
--
--  // Check that 90deg rotated highdpi window transforms correctly.
--  cursor_controller->SetCursorConfigForWindow(kTestWindow,
--                                              display::Display::ROTATE_90, 2.f);
--  gfx::Vector2dF delta(3.f, 5.f);
--  cursor_controller->ApplyCursorConfigForWindow(kTestWindow, &delta);
--  EXPECT_FLOAT_EQ(-10.f, delta.x());
--  EXPECT_FLOAT_EQ(6.f, delta.y());
--}
--
--}  // namespace ui
-diff --git a/ui/events/ozone/cursor_controller.cc b/ui/events/ozone/cursor_controller.cc
-new file mode 100644
-index 0000000..3ca85f8
---- /dev/null
 +++ b/ui/events/ozone/cursor_controller.cc
-@@ -0,0 +1,91 @@
-+// Copyright (c) 2014 The Chromium Authors. All rights reserved.
-+// Use of this source code is governed by a BSD-style license that can be
-+// found in the LICENSE file.
-+
+@@ -2,7 +2,7 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "ui/events/ozone/chromeos/cursor_controller.h"
 +#include "ui/events/ozone/cursor_controller.h"
-+
-+namespace ui {
-+
-+namespace {
-+
-+void TransformCursorMove(display::Display::Rotation rotation,
-+                         float scale,
-+                         gfx::Vector2dF* delta) {
-+  float dx;
-+  float dy;
-+
-+  switch (rotation) {
-+    case display::Display::ROTATE_90:
-+      dx = -delta->y();
-+      dy = delta->x();
-+      break;
-+    case display::Display::ROTATE_180:
-+      dx = -delta->x();
-+      dy = -delta->y();
-+      break;
-+    case display::Display::ROTATE_270:
-+      dx = delta->y();
-+      dy = -delta->x();
-+      break;
-+    default:  // display::Display::ROTATE_0
-+      dx = delta->x();
-+      dy = delta->y();
-+      break;
-+  }
-+
-+  delta->set_x(dx * scale);
-+  delta->set_y(dy * scale);
-+}
-+
-+}  // namespace
-+
-+// static
-+CursorController* CursorController::GetInstance() {
-+  return base::Singleton<CursorController>::get();
-+}
-+
-+void CursorController::AddCursorObserver(CursorObserver* observer) {
-+  base::AutoLock lock(cursor_observers_lock_);
-+  cursor_observers_.AddObserver(observer);
-+}
-+
-+void CursorController::RemoveCursorObserver(CursorObserver* observer) {
-+  base::AutoLock lock(cursor_observers_lock_);
-+  cursor_observers_.RemoveObserver(observer);
-+}
-+
-+void CursorController::SetCursorConfigForWindow(
-+    gfx::AcceleratedWidget widget,
-+    display::Display::Rotation rotation,
-+    float scale) {
-+  base::AutoLock lock(window_to_cursor_configuration_map_lock_);
-+  PerWindowCursorConfiguration config = {rotation, scale};
-+  window_to_cursor_configuration_map_[widget] = config;
-+}
-+
-+void CursorController::ClearCursorConfigForWindow(
-+    gfx::AcceleratedWidget widget) {
-+  window_to_cursor_configuration_map_.erase(widget);
-+}
-+
-+void CursorController::ApplyCursorConfigForWindow(gfx::AcceleratedWidget widget,
-+                                                  gfx::Vector2dF* delta) const {
-+  base::AutoLock lock(window_to_cursor_configuration_map_lock_);
-+  auto it = window_to_cursor_configuration_map_.find(widget);
-+  if (it != window_to_cursor_configuration_map_.end())
-+    TransformCursorMove(it->second.rotation, it->second.scale, delta);
-+}
-+
-+void CursorController::SetCursorLocation(const gfx::PointF& location) {
-+  base::AutoLock lock(cursor_observers_lock_);
-+  for (auto& observer : cursor_observers_)
-+    observer.OnCursorLocationChanged(location);
-+}
-+
-+CursorController::CursorController() {
-+}
-+
-+CursorController::~CursorController() {
-+}
-+
-+}  // namespace ui
-diff --git a/ui/events/ozone/cursor_controller.h b/ui/events/ozone/cursor_controller.h
-new file mode 100644
-index 0000000..e886040
---- /dev/null
-+++ b/ui/events/ozone/cursor_controller.h
-@@ -0,0 +1,103 @@
-+// Copyright 2014 The Chromium Authors. All rights reserved.
-+// Use of this source code is governed by a BSD-style license that can be
-+// found in the LICENSE file.
-+
-+#ifndef UI_EVENTS_OZONE_CHROMEOS_CURSOR_CONTROLLER_H_
-+#define UI_EVENTS_OZONE_CHROMEOS_CURSOR_CONTROLLER_H_
-+
-+#include <map>
-+
-+#include "base/macros.h"
-+#include "base/memory/singleton.h"
-+#include "base/observer_list.h"
-+#include "base/synchronization/lock.h"
-+#include "ui/display/display.h"
-+#include "ui/events/ozone/events_ozone_export.h"
-+#include "ui/events/platform_event.h"
-+#include "ui/gfx/geometry/point_f.h"
-+#include "ui/gfx/geometry/vector2d_f.h"
-+#include "ui/gfx/native_widget_types.h"
-+
-+namespace ui {
-+
-+// Manager for per-window cursor settings.
-+//
-+// This is used to apply a rotation & acceleration to each vector added to the
-+// cursor position on ChromeOS.
-+//
-+// This has 3 uses:
-+//
-+//  (1) Fixing cursor movement direction for rotated displays.
-+//  (2) Fixing cursor movement speed based on scale factor.
-+//  (3) Tweaking cursor movement speed on external displays.
-+//
-+// This HACK is necessary because ash handles rotation and handles scaling but
-+// does NOT handle the cursor movement (except that it sends a message to x11 or
-+// ozone to activate this hack).
-+//
-+// TODO(spang): Don't worry, we have a plan to remove this.
-+class EVENTS_OZONE_EXPORT CursorController {
-+ public:
-+  class CursorObserver {
-+   public:
-+    // Called when cursor location changed.
-+    virtual void OnCursorLocationChanged(const gfx::PointF& location) = 0;
-+
-+   protected:
-+    virtual ~CursorObserver() {}
-+  };
-+
-+  static CursorController* GetInstance();
-+
-+  void AddCursorObserver(CursorObserver* observer);
-+  void RemoveCursorObserver(CursorObserver* observer);
-+
-+  // Changes the rotation & scale applied for a window.
-+  void SetCursorConfigForWindow(gfx::AcceleratedWidget widget,
-+                                display::Display::Rotation rotation,
-+                                float scale);
-+
-+  // Cleans up all state associated with a window.
-+  void ClearCursorConfigForWindow(gfx::AcceleratedWidget widget);
-+
-+  // Applies the current settings for a window to a cursor movement vector.
-+  //
-+  // The rotation applies counter-clockwise (to negate clockwise display
-+  // rotation) and the result is multiplied by scale.
-+  //
-+  // e.g. if (dx, dy) = (2, 3) and (scale, rotation) = (2.f, 90deg)
-+  //      then we set (dx, dy) = (-6, 4)
-+  //
-+  // Since scale generally includes DSF, you can think of the input
-+  // vector unit as DIP and the output vector unit as pixels.
-+  void ApplyCursorConfigForWindow(gfx::AcceleratedWidget widget,
-+                                  gfx::Vector2dF* delta) const;
-+
-+  // Notifies controller of new cursor location.
-+  void SetCursorLocation(const gfx::PointF& location);
-+
-+ private:
-+  CursorController();
-+  ~CursorController();
-+  friend struct base::DefaultSingletonTraits<CursorController>;
-+
-+  struct PerWindowCursorConfiguration {
-+    display::Display::Rotation rotation;
-+    float scale;
-+  };
-+
-+  typedef std::map<gfx::AcceleratedWidget, PerWindowCursorConfiguration>
-+      WindowToCursorConfigurationMap;
-+
-+  WindowToCursorConfigurationMap window_to_cursor_configuration_map_;
-+  mutable base::Lock window_to_cursor_configuration_map_lock_;
-+
-+  base::ObserverList<CursorObserver> cursor_observers_;
-+  mutable base::Lock cursor_observers_lock_;
-+
-+  DISALLOW_COPY_AND_ASSIGN(CursorController);
-+};
-+
-+}  // namespace ui
-+
-+#endif  // UI_EVENTS_OZONE_CHROMEOS_CURSOR_CONTROLLER_H_
-diff --git a/ui/events/ozone/cursor_controller_unittest.cc b/ui/events/ozone/cursor_controller_unittest.cc
-new file mode 100644
-index 0000000..460bc55
---- /dev/null
-+++ b/ui/events/ozone/cursor_controller_unittest.cc
-@@ -0,0 +1,65 @@
-+// Copyright 2014 The Chromium Authors. All rights reserved.
-+// Use of this source code is governed by a BSD-style license that can be
-+// found in the LICENSE file.
-+
-+#include "base/macros.h"
-+#include "testing/gtest/include/gtest/gtest.h"
-+#include "ui/events/ozone/chromeos/cursor_controller.h"
-+
-+namespace ui {
-+
-+namespace {
-+
-+const gfx::AcceleratedWidget kTestWindow = 1;
-+
-+}  // namespace
-+
-+class CursorControllerTest : public testing::Test {
-+ public:
-+  CursorControllerTest() {}
-+  ~CursorControllerTest() override {}
-+
-+  void TearDown() override {
-+    ui::CursorController::GetInstance()->ClearCursorConfigForWindow(
-+        kTestWindow);
-+  }
-+
-+  DISALLOW_COPY_AND_ASSIGN(CursorControllerTest);
-+};
-+
-+TEST_F(CursorControllerTest, UnconfiguredIdentity) {
-+  ui::CursorController* cursor_controller = CursorController::GetInstance();
-+
-+  // Check that unconfigured windows use identity.
-+  gfx::Vector2dF delta(2.f, 3.f);
-+  cursor_controller->ApplyCursorConfigForWindow(kTestWindow, &delta);
-+  EXPECT_FLOAT_EQ(2.f, delta.x());
-+  EXPECT_FLOAT_EQ(3.f, delta.y());
-+}
-+
-+TEST_F(CursorControllerTest, ClearedIdentity) {
-+  ui::CursorController* cursor_controller = CursorController::GetInstance();
-+
-+  // Check that configured & cleared windows use identity.
-+  cursor_controller->SetCursorConfigForWindow(
-+      kTestWindow, display::Display::ROTATE_180, 3.2f);
-+  cursor_controller->ClearCursorConfigForWindow(kTestWindow);
-+  gfx::Vector2dF delta(3.f, 5.f);
-+  cursor_controller->ApplyCursorConfigForWindow(kTestWindow, &delta);
-+  EXPECT_FLOAT_EQ(3.f, delta.x());
-+  EXPECT_FLOAT_EQ(5.f, delta.y());
-+}
-+
-+TEST_F(CursorControllerTest, RotatedHighDpi) {
-+  ui::CursorController* cursor_controller = CursorController::GetInstance();
-+
-+  // Check that 90deg rotated highdpi window transforms correctly.
-+  cursor_controller->SetCursorConfigForWindow(kTestWindow,
-+                                              display::Display::ROTATE_90, 2.f);
-+  gfx::Vector2dF delta(3.f, 5.f);
-+  cursor_controller->ApplyCursorConfigForWindow(kTestWindow, &delta);
-+  EXPECT_FLOAT_EQ(-10.f, delta.x());
-+  EXPECT_FLOAT_EQ(6.f, delta.y());
-+}
-+
-+}  // namespace ui
+ 
+ namespace ui {
+ 
+diff --git a/ui/events/ozone/chromeos/cursor_controller.h b/ui/events/ozone/cursor_controller.h
+similarity index 100%
+rename from ui/events/ozone/chromeos/cursor_controller.h
+rename to ui/events/ozone/cursor_controller.h
+diff --git a/ui/events/ozone/chromeos/cursor_controller_unittest.cc b/ui/events/ozone/cursor_controller_unittest.cc
+similarity index 100%
+rename from ui/events/ozone/chromeos/cursor_controller_unittest.cc
+rename to ui/events/ozone/cursor_controller_unittest.cc
 diff --git a/ui/ozone/platform/drm/host/drm_cursor.cc b/ui/ozone/platform/drm/host/drm_cursor.cc
-index 8ffc06b..c76ac2c 100644
+index 8ffc06b4c05e..c76ac2c201d0 100644
 --- a/ui/ozone/platform/drm/host/drm_cursor.cc
 +++ b/ui/ozone/platform/drm/host/drm_cursor.cc
 @@ -9,8 +9,8 @@
@@ -668,5 +132,5 @@ index 8ffc06b..c76ac2c 100644
    bitmap_ = bitmap;
  
 -- 
-2.7.4
+2.20.1
 

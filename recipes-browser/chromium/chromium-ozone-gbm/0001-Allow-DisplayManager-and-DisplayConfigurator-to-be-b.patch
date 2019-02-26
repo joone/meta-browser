@@ -1,8 +1,8 @@
 From 33b9b5d18e95fed2010fad43ed53c4b8fd61788f Mon Sep 17 00:00:00 2001
 From: Joone Hur <joone.hur@intel.com>
 Date: Tue, 9 Jan 2018 00:03:05 +0000
-Subject: [PATCH 1/9] Allow DisplayManager and DisplayConfigurator to be build
- for ozone-gbm
+Subject: [PATCH 01/14] Allow DisplayManager and DisplayConfigurator to be
+ build for ozone-gbm
 
 This CL allow DisplayManager and DisplayConfigurator to be build without
 OS_CHROMEOS build macro.
@@ -15,7 +15,7 @@ OS_CHROMEOS build macro.
  5 files changed, 20 insertions(+), 5 deletions(-)
 
 diff --git a/ui/display/manager/BUILD.gn b/ui/display/manager/BUILD.gn
-index 66954c3..2a80691 100644
+index 66954c3d2bd6..2a806919c360 100644
 --- a/ui/display/manager/BUILD.gn
 +++ b/ui/display/manager/BUILD.gn
 @@ -71,6 +71,10 @@ jumbo_component("manager") {
@@ -30,7 +30,7 @@ index 66954c3..2a80691 100644
      deps += [ "//chromeos" ]
    }
 diff --git a/ui/display/manager/display_change_observer.cc b/ui/display/manager/display_change_observer.cc
-index dd5bd464..e6cae67 100644
+index dd5bd464be2e..e6cae6754b83 100644
 --- a/ui/display/manager/display_change_observer.cc
 +++ b/ui/display/manager/display_change_observer.cc
 @@ -197,10 +197,11 @@ void DisplayChangeObserver::OnDisplayModeChanged(
@@ -47,7 +47,7 @@ index dd5bd464..e6cae67 100644
  
    // For the purposes of user activity detection, ignore synthetic mouse events
 diff --git a/ui/display/manager/display_configurator.cc b/ui/display/manager/display_configurator.cc
-index a780b56..25d9c4e 100644
+index a780b56ef79a..25d9c4e288f4 100644
 --- a/ui/display/manager/display_configurator.cc
 +++ b/ui/display/manager/display_configurator.cc
 @@ -187,8 +187,10 @@ DisplayConfigurator::DisplayLayoutManagerImpl::ParseDisplays(
@@ -74,7 +74,7 @@ index a780b56..25d9c4e 100644
        current_power_state_(chromeos::DISPLAY_POWER_ALL_ON),
        requested_display_state_(MULTIPLE_DISPLAY_STATE_INVALID),
 diff --git a/ui/display/manager/display_manager.h b/ui/display/manager/display_manager.h
-index f95cffa..26abbe3 100644
+index f95cffaa5044..26abbe3c9907 100644
 --- a/ui/display/manager/display_manager.h
 +++ b/ui/display/manager/display_manager.h
 @@ -32,7 +32,7 @@
@@ -114,7 +114,7 @@ index f95cffa..26abbe3 100644
  
    // A cancelable callback to trigger sending UMA metrics when display zoom is
 diff --git a/ui/display/manager/touch_transform_controller.cc b/ui/display/manager/touch_transform_controller.cc
-index 4b7602d..4b379d7 100644
+index 4b7602d035d7..4b379d7ed33e 100644
 --- a/ui/display/manager/touch_transform_controller.cc
 +++ b/ui/display/manager/touch_transform_controller.cc
 @@ -360,9 +360,13 @@ void TouchTransformController::UpdateTouchTransforms(
@@ -132,5 +132,5 @@ index 4b7602d..4b379d7 100644
                             display_info_list[index],
                             display_info_list[touch_display_index], update_data);
 -- 
-2.7.4
+2.20.1
 
