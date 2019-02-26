@@ -1,0 +1,40 @@
+From 8a940fd75cd8bbfc7b2ce67468edad810a175e8e Mon Sep 17 00:00:00 2001
+From: Joone Hur <joone.hur@intel.com>
+Date: Wed, 8 Aug 2018 22:23:03 +0000
+Subject: [PATCH 11/14] Fix the focus issue with toolkit_view=true
+
+The focus doesn't move to an input element in a web page from
+the URL input box. This CL fixes this problem.
+---
+ content/shell/browser/shell.cc       | 2 +-
+ content/shell/browser/shell_views.cc | 1 +
+ 2 files changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/content/shell/browser/shell.cc b/content/shell/browser/shell.cc
+index 0c3ac490648f..42fd4292f4f4 100644
+--- a/content/shell/browser/shell.cc
++++ b/content/shell/browser/shell.cc
+@@ -582,7 +582,7 @@ void Shell::RendererUnresponsive(
+ }
+ 
+ void Shell::ActivateContents(WebContents* contents) {
+-  contents->GetRenderViewHost()->GetWidget()->Focus();
++  contents->Focus();
+ }
+ 
+ bool Shell::ShouldAllowRunningInsecureContent(
+diff --git a/content/shell/browser/shell_views.cc b/content/shell/browser/shell_views.cc
+index ac99a3388413..984892e2d899 100644
+--- a/content/shell/browser/shell_views.cc
++++ b/content/shell/browser/shell_views.cc
+@@ -440,6 +440,7 @@ void Shell::PlatformCreateWindow(int width, int height) {
+   window_widget_->Init(params);
+ #endif
+ 
++  content_size_ = gfx::Size(width, height);
+ #if defined(DISPLAY_CONFIGURATION)
+  platform_->ResizeWindow(gfx::Size(width, height));
+ #endif
+-- 
+2.20.1
+

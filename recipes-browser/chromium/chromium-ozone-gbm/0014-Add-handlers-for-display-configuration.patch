@@ -1,0 +1,65 @@
+commit c82b08faa23ff6eae0d75b7940fa0c36e4a9e8ea
+Author: Joone Hur <joone.hur@intel.com>
+Date:   Mon Feb 25 23:50:47 2019 +0000
+
+    Add handlers for display configuration
+
+diff --git a/content/shell/browser/shell_views.cc b/content/shell/browser/shell_views.cc
+index 4218023..b0b2d80 100644
+--- a/content/shell/browser/shell_views.cc
++++ b/content/shell/browser/shell_views.cc
+@@ -507,4 +507,54 @@ void Shell::PlatformSetTitle(const base::string16& title) {
+   window_widget_->UpdateWindowTitle();
+ }
+ 
++void  Shell::OnConfigurationChanged() {
++  if (is_configuring_) {
++    should_configure_ = true;
++    return;
++  }
++
++  is_configuring_ = true;
++  delegate_->GetDisplays(base::BindRepeating(&Shell::OnDisplaysAquired,
++                                             base::Unretained(this)));
++}
++
++void  Shell::OnDisplaysAquired(
++    const std::vector<display::DisplaySnapshot*>& displays) {
++  gfx::Point origin;
++  for (auto* display : displays) {
++    if (!display->native_mode()) {
++      LOG(INFO) << "Display " << display->display_id()
++                 << " doesn't have a native mode";
++      continue;
++    }
++
++    delegate_->Configure(
++        *display, display->native_mode(), origin,
++        base::BindRepeating(&Shell::OnDisplayConfigured,
++                            base::Unretained(this),
++                            gfx::Rect(origin, display->native_mode()->size())));
++    origin.Offset(display->native_mode()->size().width(), 0);
++  }
++  is_configuring_ = false;
++
++  if (should_configure_) {
++    should_configure_ = false;
++    base::ThreadTaskRunnerHandle::Get()->PostTask(
++        FROM_HERE, base::BindRepeating(&Shell::OnConfigurationChanged,
++                                       base::Unretained(this)));
++  }
++}
++
++void  Shell::OnDisplayConfigured(const gfx::Rect& bounds, bool success) {
++  if (success) {
++    LOG(INFO) << "Configure display at " << bounds.ToString();
++    PlatformCreateWindow(bounds.width(), bounds.height());
++  } else {
++    LOG(ERROR) << "Failed to configure display at " << bounds.ToString();
++  }
++}
++
++void  Shell::OnDisplaySnapshotsInvalidated() {}
++
++
+ }  // namespace content

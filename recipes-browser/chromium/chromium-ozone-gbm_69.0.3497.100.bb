@@ -12,6 +12,11 @@ SRC_URI += " \
  file://0008-Build-fix.patch \
  file://0009-RELAND-vaapi-decode-on-client-NativePixmaps.patch \
  file://0010-add-mojo-layouttest-test.patch \
+ file://0010-Run-content_shell-with-tool_view.patch \
+ file://0011-Fix-the-focus-issue-with-toolkit_view-true.patch \
+ file://0012-Show-a-content-in-the-Aura-mode.patch \
+ file://0013-no-set-the-conent-size.patch \
+ file://0014-Add-handlers-for-display-configuration.patch
 "
 DEPENDS += "\
         virtual/egl \
@@ -26,7 +31,7 @@ GN_ARGS += "\
         ozone_platform_x11=false \
         ozone_platform_gbm=true \
         enable_gtk=false \
-        toolkit_views = false \
+        toolkit_views = true \
         enable_nacl = false \
         build_display_configuration = true \
         use_intel_minigbm = true \

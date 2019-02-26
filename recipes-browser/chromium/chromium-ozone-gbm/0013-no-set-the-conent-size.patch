@@ -1,0 +1,24 @@
+From 451af58224259647fe50390eb85ae6a54f207999 Mon Sep 17 00:00:00 2001
+From: Joone Hur <joone.hur@intel.com>
+Date: Tue, 28 Aug 2018 20:07:34 +0000
+Subject: [PATCH 13/14] no set the conent size
+
+---
+ content/shell/browser/shell_views.cc | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/content/shell/browser/shell_views.cc b/content/shell/browser/shell_views.cc
+index 984892e2d899..42180232686f 100644
+--- a/content/shell/browser/shell_views.cc
++++ b/content/shell/browser/shell_views.cc
+@@ -448,7 +448,6 @@ void Shell::PlatformCreateWindow(int width, int height) {
+   // |window_widget_| is made visible in PlatformSetContents(), so that the
+   // platform-window size does not need to change due to layout again.
+   window_ = window_widget_->GetNativeWindow();
+-  content_size_ = gfx::Size(width, height);
+   // Call ShowRootWindow on RootWindow created by WMTestHelper without
+   // which XWindow owned by RootWindow doesn't get mapped.
+ #if defined(DISPLAY_CONFIGURATION)
+-- 
+2.20.1
+

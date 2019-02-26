@@ -1,0 +1,175 @@
+From 154fad16cbd21076b8da6c99fe879e4ce3c875cd Mon Sep 17 00:00:00 2001
+From: Joone Hur <joone.hur@intel.com>
+Date: Sat, 21 Jul 2018 05:35:38 +0000
+Subject: [PATCH 10/14] Run content_shell with tool_view
+
+---
+ content/shell/BUILD.gn               |  5 ++++
+ content/shell/browser/shell.cc       |  8 ++++++
+ content/shell/browser/shell.h        |  2 +-
+ content/shell/browser/shell_views.cc | 41 ++++++++++++++++++++++++----
+ 4 files changed, 50 insertions(+), 6 deletions(-)
+
+diff --git a/content/shell/BUILD.gn b/content/shell/BUILD.gn
+index 698aaa4c79dc..37cb5f746aea 100644
+--- a/content/shell/BUILD.gn
++++ b/content/shell/BUILD.gn
+@@ -14,6 +14,8 @@ import("//services/service_manager/public/service_manifest.gni")
+ import("//tools/grit/grit_rule.gni")
+ import("//tools/grit/repack.gni")
+ import("//tools/v8_context_snapshot/v8_context_snapshot.gni")
++import("//ui/display/display.gni")
++
+ if (is_android) {
+   import("//build/config/android/config.gni")
+ } else if (is_mac) {
+@@ -220,6 +222,9 @@ static_library("content_shell_lib") {
+   ]
+ 
+   defines = [ "CONTENT_SHELL_VERSION=\"$content_shell_version\"" ]
++  if (build_display_configuration) {
++    defines += [ "DISPLAY_CONFIGURATION" ]
++  }
+ 
+   public_deps = [
+     ":android_shell_descriptors",
+diff --git a/content/shell/browser/shell.cc b/content/shell/browser/shell.cc
+index 6739c5fa124a..0c3ac490648f 100644
+--- a/content/shell/browser/shell.cc
++++ b/content/shell/browser/shell.cc
+@@ -148,7 +148,15 @@ Shell* Shell::CreateShell(std::unique_ptr<WebContents> web_contents,
+   WebContents* raw_web_contents = web_contents.get();
+   Shell* shell = new Shell(std::move(web_contents), should_set_delegate);
+ 
++#if !defined(DISPLAY_CONFIGURATION)
++  // It should be called when display configuration is done.
++  shell->PlatformCreateWindow(initial_size.width(), initial_size.height());
+   shell->PlatformSetContents();
++#else
++#if !defined(TOOLKIT_VIEWS)
++  shell->PlatformSetContents();
++#endif
++#endif
+ 
+   shell->PlatformResizeSubViews();
+ 
+diff --git a/content/shell/browser/shell.h b/content/shell/browser/shell.h
+index 57feeb165884..1ef54ef92e59 100644
+--- a/content/shell/browser/shell.h
++++ b/content/shell/browser/shell.h
+@@ -311,7 +311,7 @@ class Shell : public WebContentsDelegate,
+ #if defined(TOOLKIT_VIEWS)
+   static views::ViewsDelegate* views_delegate_;
+ 
+-  views::Widget* window_widget_;
++  views::Widget* window_widget_ = nullptr;
+ #endif // defined(TOOLKIT_VIEWS)
+   static ShellPlatformDataAura* platform_;
+ #endif  // defined(USE_AURA)
+diff --git a/content/shell/browser/shell_views.cc b/content/shell/browser/shell_views.cc
+index c7f3ac38e843..ac99a3388413 100644
+--- a/content/shell/browser/shell_views.cc
++++ b/content/shell/browser/shell_views.cc
+@@ -41,6 +41,12 @@
+ #include "ui/views/widget/desktop_aura/desktop_screen.h"
+ #endif
+ 
++#if defined(DISPLAY_CONFIGURATION)
++#include "ui/aura/test/test_screen.h"
++#include "ui/display/types/native_display_delegate.h"
++#include "ui/display/types/display_snapshot.h"
++#endif
++
+ #if defined(USE_AURA)
+ #include "ui/wm/core/wm_state.h"
+ #endif
+@@ -344,9 +350,16 @@ void Shell::PlatformInitialize(const gfx::Size& default_window_size) {
+       default_window_size,
+       ServiceManagerConnection::GetForProcess()->GetConnector(),
+       ui_context_factory);
++#else
++#if defined(DISPLAY_CONFIGURATION)
++  CHECK(!platform_);
++  aura::TestScreen* screen = aura::TestScreen::Create(gfx::Size());
++  display::Screen::SetScreenInstance(screen);
++  platform_ = new ShellPlatformDataAura(default_window_size);
+ #else
+   wm_state_ = new wm::WMState;
+   views::InstallDesktopScreenIfNecessary();
++#endif
+ #endif
+   views_delegate_ = new views::DesktopTestViewsDelegate();
+ }
+@@ -363,7 +376,7 @@ void Shell::PlatformExit() {
+   views_delegate_ = nullptr;
+   delete platform_;
+   platform_ = nullptr;
+-#if defined(USE_AURA) && !defined(OS_CHROMEOS)
++#if defined(USE_AURA) && !defined(OS_CHROMEOS) && !defined(DISPLAY_CONFIGURATION)
+   delete wm_state_;
+   wm_state_ = nullptr;
+ #endif
+@@ -373,7 +386,7 @@ void Shell::PlatformCleanUp() {
+ }
+ 
+ void Shell::PlatformEnableUIControl(UIControl control, bool is_enabled) {
+-  if (headless_ || hide_toolbar_)
++  if (headless_ || hide_toolbar_ || !window_widget_)
+     return;
+   ShellWindowDelegateView* delegate_view =
+     static_cast<ShellWindowDelegateView*>(window_widget_->widget_delegate());
+@@ -390,7 +403,7 @@ void Shell::PlatformEnableUIControl(UIControl control, bool is_enabled) {
+ }
+ 
+ void Shell::PlatformSetAddressBarURL(const GURL& url) {
+-  if (headless_ || hide_toolbar_)
++  if (headless_ || hide_toolbar_ || !window_widget_)
+     return;
+   ShellWindowDelegateView* delegate_view =
+     static_cast<ShellWindowDelegateView*>(window_widget_->widget_delegate());
+@@ -421,14 +434,32 @@ void Shell::PlatformCreateWindow(int width, int height) {
+   params.delegate = new ShellWindowDelegateView(this);
+   params.wm_class_class = "chromium-content_shell";
+   params.wm_class_name = params.wm_class_class;
++#if defined(DISPLAY_CONFIGURATION)
++  params.parent = platform_->host()->window();
++#endif
+   window_widget_->Init(params);
+ #endif
+ 
+-  content_size_ = gfx::Size(width, height);
++#if defined(DISPLAY_CONFIGURATION)
++ platform_->ResizeWindow(gfx::Size(width, height));
++#endif
+ 
+   // |window_widget_| is made visible in PlatformSetContents(), so that the
+   // platform-window size does not need to change due to layout again.
+   window_ = window_widget_->GetNativeWindow();
++  content_size_ = gfx::Size(width, height);
++  // Call ShowRootWindow on RootWindow created by WMTestHelper without
++  // which XWindow owned by RootWindow doesn't get mapped.
++#if defined(DISPLAY_CONFIGURATION)
++ window_widget_->SetBounds(gfx::Rect(0, 0, width, height));
++#endif
++  window_->GetHost()->Show();
++  window_widget_->Show();
++
++#if defined(DISPLAY_CONFIGURATION)
++  CHECK(window_->GetHost() == platform_->host());
++  PlatformSetContents();
++#endif
+ }
+ 
+ void Shell::PlatformSetContents() {
+@@ -468,7 +499,7 @@ void Shell::Close() {
+ }
+ 
+ void Shell::PlatformSetTitle(const base::string16& title) {
+-  if (headless_)
++  if (headless_  || !window_widget_)
+     return;
+   ShellWindowDelegateView* delegate_view =
+     static_cast<ShellWindowDelegateView*>(window_widget_->widget_delegate());
+-- 
+2.20.1
+
